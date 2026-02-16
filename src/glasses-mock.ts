@@ -389,17 +389,24 @@ function handleSdkMessage(jsonStr: string): any {
 ; (function installMock() {
     if (typeof window === 'undefined') return
 
-        // Install the mock flutter_inappwebview BEFORE the SDK reads it
-        ; (window as any).flutter_inappwebview = {
-            callHandler(name: string, jsonPayload: string): Promise<any> {
-                if (name === 'evenAppMessage') {
-                    const result = handleSdkMessage(jsonPayload)
-                    return Promise.resolve(result)
-                }
-                console.warn('[GlassesMock] Unknown callHandler name:', name)
-                return Promise.resolve(undefined)
-            }
-        }
+    // CRITICAL: Only install mock if the REAL flutter bridge is absent.
+    // On actual glasses, window.flutter_inappwebview already exists and
+    // we must NOT overwrite it — the real bridge handles rendering.
+    if ((window as any).flutter_inappwebview) {
+        console.log('[GlassesMock] Real flutter_inappwebview detected — skipping mock')
+        return
+    }
 
-    console.log('[GlassesMock] Mock flutter_inappwebview installed')
+    ; (window as any).flutter_inappwebview = {
+        callHandler(name: string, jsonPayload: string): Promise<any> {
+            if (name === 'evenAppMessage') {
+                const result = handleSdkMessage(jsonPayload)
+                return Promise.resolve(result)
+            }
+            console.warn('[GlassesMock] Unknown callHandler name:', name)
+            return Promise.resolve(undefined)
+        }
+    }
+
+    console.log('[GlassesMock] Mock flutter_inappwebview installed (browser mode)')
 })()
