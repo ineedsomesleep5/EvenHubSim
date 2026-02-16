@@ -21,6 +21,7 @@ import { createRestApiModule } from './modules/restapi'
 // ── SDK state ──────────────────────────────────────────────
 let sdk: EvenBetterSdk | null = null
 let connected = false
+let ignoreEventsUntil = 0 // Timestamp to ignore events (debounce/refractory period)
 
 // ── Navigation state ───────────────────────────────────────
 type View = 'menu' | string
@@ -106,11 +107,13 @@ async function renderList(title: string, items: string[], selectedIndex: number)
         // Update content
         titleEl.setContent(title)
         listEl.setItems(items)
+        listEl.setIsItemSelectBorderEn(true) // Ensure border is on for menu
 
         // Note: SDK doesn't expose a way to set selection index programmatically
         // So we just render. The glasses manage current selection.
 
         await page.render()
+        ignoreEventsUntil = Date.now() + 500 // Ignore events for 500ms (prevent phantom clicks from ack)
         appendEventLog(`[hub] rendered list: ${items.length} items`)
     } catch (err) {
         console.error('[hub] render list error', err)
@@ -126,8 +129,10 @@ async function renderText(title: string, body: string): Promise<void> {
         // Update content
         titleEl.setContent(title)
         bodyEl.setContent(body)
+        if (listCache) listCache.list.setIsItemSelectBorderEn(false) // Disable selection border on text pages?
 
         await page.render()
+        ignoreEventsUntil = Date.now() + 500 // Ignore events for 500ms
         appendEventLog(`[hub] rendered text: ${title}`)
     } catch (err) {
         console.error('[hub] render text error', err)
@@ -154,6 +159,9 @@ function createRenderer(): HubRenderer {
 // ── Event handling ─────────────────────────────────────────
 
 function detectEventType(event: EvenHubEvent): 'up' | 'down' | 'click' | 'double' | null {
+    // Check refractory period
+    if (Date.now() < ignoreEventsUntil) return null
+
     // Gather all possible eventType values
     const sources: unknown[] = []
 
@@ -197,7 +205,13 @@ function detectEventType(event: EvenHubEvent): 'up' | 'down' | 'click' | 'double
         // DO NOT infer click if index is same (it might be a heartbeat).
         if (idx > menuIndex) return 'down'
         if (idx < menuIndex) return 'up'
-        // return 'click' // <--- REMOVED: This was causing false clicks on heartbeats
+        return 'click' // <--- RESTORED: Unchanged index = click (after debounce)
+    }
+
+    // Infer from text/sys event presence (no index to check)
+    // If we get a text event and it wasn't caught by explicit type check, it's a click.
+    if (event.textEvent || event.sysEvent) {
+        return 'click'
     }
 
     return null
