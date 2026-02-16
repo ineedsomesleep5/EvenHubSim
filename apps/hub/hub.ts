@@ -2,6 +2,7 @@
  * Unified Hub — Orchestrates the main menu and all sub-modules
  * on the Even G2 glasses display.
  *
+ * Auto-connects to the Even bridge on page load (no button click needed).
  * Scroll fix: every navigation event calls rebuildPageContainer
  * with the updated currentSelectedItem so the glasses display
  * scrolls to follow the selection.
@@ -30,6 +31,7 @@ import { createRestApiModule } from './modules/restapi'
 let bridge: EvenAppBridge | null = null
 let pageRendered = false
 let eventsRegistered = false
+let connected = false
 
 // ── Navigation state ───────────────────────────────────────
 type View = 'menu' | string
@@ -39,13 +41,6 @@ let modules: SubModule[] = []
 let activeModule: SubModule | null = null
 
 // ── Bridge helpers ─────────────────────────────────────────
-
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-    return new Promise<T>((resolve, reject) => {
-        const timer = window.setTimeout(() => reject(new Error(`Timed out after ${ms}ms`)), ms)
-        promise.then(resolve).catch(reject).finally(() => window.clearTimeout(timer))
-    })
-}
 
 function getRawEventType(event: EvenHubEvent): unknown {
     const raw = (event.jsonData ?? {}) as Record<string, unknown>
@@ -59,7 +54,6 @@ function getRawEventType(event: EvenHubEvent): unknown {
 }
 
 function normalizeEventType(raw: unknown, event: EvenHubEvent, prevIndex: number): 'up' | 'down' | 'click' | 'double' {
-    // Number mapping
     if (typeof raw === 'number') {
         switch (raw) {
             case 0: return 'click'
@@ -68,7 +62,6 @@ function normalizeEventType(raw: unknown, event: EvenHubEvent, prevIndex: number
             case 3: return 'double'
         }
     }
-    // String mapping
     if (typeof raw === 'string') {
         const v = raw.toUpperCase()
         if (v.includes('DOUBLE')) return 'double'
@@ -76,12 +69,10 @@ function normalizeEventType(raw: unknown, event: EvenHubEvent, prevIndex: number
         if (v.includes('SCROLL_TOP') || v.includes('UP')) return 'up'
         if (v.includes('SCROLL_BOTTOM') || v.includes('DOWN')) return 'down'
     }
-    // Enum mapping
     if (raw === OsEventTypeList.DOUBLE_CLICK_EVENT) return 'double'
     if (raw === OsEventTypeList.CLICK_EVENT) return 'click'
     if (raw === OsEventTypeList.SCROLL_TOP_EVENT) return 'up'
     if (raw === OsEventTypeList.SCROLL_BOTTOM_EVENT) return 'down'
-    // Infer from list index change
     if (event.listEvent) {
         const idx = typeof event.listEvent.currentSelectItemIndex === 'number'
             ? event.listEvent.currentSelectItemIndex : -1
@@ -101,54 +92,50 @@ async function renderPage(
     listItems?: string[],
     selectedIndex?: number,
 ): Promise<void> {
-    const containers: (TextContainerProperty | ListContainerProperty)[] = []
     const textObjects: TextContainerProperty[] = []
     const listObjects: ListContainerProperty[] = []
     let containerCount = 0
     let currentSelected = 0
 
-    // Title text container
+    // Title
     containerCount++
-    const titleContainer = new TextContainerProperty({
+    textObjects.push(new TextContainerProperty({
         containerID: containerCount,
-        containerName: `hub-title-${containerCount}`,
+        containerName: 'hub-title',
         content: title,
         xPosition: 8,
         yPosition: 0,
         width: 560,
         height: 32,
         isEventCapture: 0,
-    })
-    textObjects.push(titleContainer)
+    }))
 
     if (listItems && listItems.length > 0) {
-        // Body text (small status line)
+        // Status line above list
         if (body) {
             containerCount++
-            const bodyContainer = new TextContainerProperty({
+            textObjects.push(new TextContainerProperty({
                 containerID: containerCount,
-                containerName: `hub-body-${containerCount}`,
+                containerName: 'hub-status',
                 content: body,
                 xPosition: 8,
                 yPosition: 34,
                 width: 560,
                 height: 28,
                 isEventCapture: 0,
-            })
-            textObjects.push(bodyContainer)
+            }))
         }
 
-        // Scrollable list — THIS is the scroll fix:
-        // We always pass currentSelectedItem so the glasses scroll to it
+        // Scrollable list — currentSelectedItem makes glasses scroll
         containerCount++
         const yStart = body ? 64 : 36
         const listHeight = 200 - yStart
         const safeIndex = Math.max(0, Math.min((selectedIndex ?? 0), listItems.length - 1))
         currentSelected = safeIndex
 
-        const listContainer = new ListContainerProperty({
+        listObjects.push(new ListContainerProperty({
             containerID: containerCount,
-            containerName: `hub-list-${containerCount}`,
+            containerName: 'hub-list',
             itemContainer: new ListItemContainerProperty({
                 itemCount: listItems.length,
                 itemWidth: 566,
@@ -160,22 +147,20 @@ async function renderPage(
             yPosition: yStart,
             width: 572,
             height: listHeight,
-        })
-        listObjects.push(listContainer)
+        }))
     } else {
-        // Text-only page (clock, timer, chess board, etc.)
+        // Text-only page
         containerCount++
-        const bodyContainer = new TextContainerProperty({
+        textObjects.push(new TextContainerProperty({
             containerID: containerCount,
-            containerName: `hub-body-${containerCount}`,
+            containerName: 'hub-body',
             content: body,
             xPosition: 8,
             yPosition: 36,
             width: 560,
             height: 160,
             isEventCapture: 1,
-        })
-        textObjects.push(bodyContainer)
+        }))
     }
 
     const config = {
@@ -194,6 +179,7 @@ async function renderPage(
         }
     } catch (err) {
         console.error('[hub] render error', err)
+        appendEventLog(`[hub] render error: ${err instanceof Error ? err.message : String(err)}`)
     }
 }
 
@@ -203,7 +189,7 @@ function createRenderer(): HubRenderer {
     return {
         async renderMenu(items, selectedIndex) {
             if (!bridge) return
-            await renderPage(bridge, '── Even Hub ──', 'Scroll + Click to enter', items, selectedIndex)
+            await renderPage(bridge, '── Even Hub ──', 'Scroll + Click', items, selectedIndex)
         },
         async renderText(title, body) {
             if (!bridge) return
@@ -224,17 +210,13 @@ async function handleEvent(event: EvenHubEvent): Promise<void> {
 
     appendEventLog(`Input: ${eventType}`)
 
-    // Double-click always goes back to menu (unless already on menu)
+    // Double-click always goes back to menu
     if (eventType === 'double' && currentView !== 'menu') {
-        if (activeModule) {
-            // Let module handle double-click first (e.g. Reddit back to list)
-            // Only go to menu if module doesn't consume it
-            activeModule.leave()
-        }
+        if (activeModule) activeModule.leave()
         activeModule = null
         currentView = 'menu'
         menuIndex = 0
-        pageRendered = false // force fresh page
+        pageRendered = false
         appendEventLog('Back to menu')
         await showMenu()
         return
@@ -259,7 +241,7 @@ async function handleMenuEvent(eventType: 'up' | 'down' | 'click' | 'double'): P
         if (mod) {
             activeModule = mod
             currentView = mod.id
-            pageRendered = false // force fresh page for module
+            pageRendered = false
             appendEventLog(`Entered: ${mod.label}`)
             await mod.enter()
         }
@@ -269,7 +251,7 @@ async function handleMenuEvent(eventType: 'up' | 'down' | 'click' | 'double'): P
 async function showMenu(): Promise<void> {
     if (!bridge) return
     const items = modules.map((m) => m.label)
-    await renderPage(bridge, '── Even Hub ──', 'Scroll + Click to enter', items, menuIndex)
+    await renderPage(bridge, '── Even Hub ──', 'Scroll + Click', items, menuIndex)
 }
 
 // ── Event registration ─────────────────────────────────────
@@ -278,6 +260,27 @@ function registerEvents(b: EvenAppBridge): void {
     if (eventsRegistered) return
     b.onEvenHubEvent((event) => void handleEvent(event))
     eventsRegistered = true
+}
+
+// ── Auto-connect logic ─────────────────────────────────────
+
+async function tryConnect(setStatus: SetStatus): Promise<boolean> {
+    try {
+        appendEventLog('Hub: attempting bridge connection...')
+        bridge = await waitForEvenAppBridge()
+        registerEvents(bridge)
+        currentView = 'menu'
+        menuIndex = 0
+        pageRendered = false
+        await showMenu()
+        connected = true
+        setStatus('Connected — use glasses to navigate')
+        appendEventLog('Hub: connected to bridge')
+        return true
+    } catch (err) {
+        console.error('[hub] bridge connect failed', err)
+        return false
+    }
 }
 
 // ── Public API ─────────────────────────────────────────────
@@ -294,29 +297,40 @@ export function createHubActions(setStatus: SetStatus): AppActions {
         createRestApiModule(renderer, setStatus),
     ]
 
+    // AUTO-CONNECT: Try to connect immediately on creation.
+    // This is critical for the Even Hub WebView — the bridge
+    // is available as soon as the page loads, no button needed.
+    void tryConnect(setStatus).then((ok) => {
+        if (!ok) {
+            setStatus('Ready — press Connect to start')
+            appendEventLog('Hub: auto-connect failed, press Connect manually')
+        }
+    })
+
     return {
         async connect() {
-            setStatus('Connecting to Even bridge...')
-            appendEventLog('Hub: connecting')
-
-            try {
-                bridge = await withTimeout(waitForEvenAppBridge(), 5000)
-                registerEvents(bridge)
+            if (connected) {
+                // Already connected, re-render menu
                 currentView = 'menu'
                 menuIndex = 0
                 pageRendered = false
+                if (activeModule) { activeModule.leave(); activeModule = null }
                 await showMenu()
                 setStatus('Connected — use glasses to navigate')
-                appendEventLog('Hub: connected to bridge')
-            } catch {
+                return
+            }
+
+            setStatus('Connecting to Even bridge...')
+            appendEventLog('Hub: manual connect')
+
+            const ok = await tryConnect(setStatus)
+            if (!ok) {
                 setStatus('Bridge not found — running in mock mode')
                 appendEventLog('Hub: mock mode (no bridge)')
             }
         },
         async action() {
-            // Context-sensitive action
             if (currentView === 'menu') {
-                // Treat action button as click (enter module)
                 await handleMenuEvent('click')
             } else if (activeModule) {
                 await activeModule.handleEvent('click')
