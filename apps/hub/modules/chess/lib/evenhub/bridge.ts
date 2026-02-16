@@ -49,25 +49,44 @@ export class EvenHubBridge {
     }
 
     try {
-      // Try Rebuild first (likely hosted mode)
+      // 1. Try Rebuild (fastest, preserves validity if compatible)
       appendEventLog('Chess: Attempting Page Rebuild...');
       const rebuildSuccess = await this.bridge.rebuildPageContainer(container as any);
       if (rebuildSuccess) {
         appendEventLog('Chess: Rebuild Success');
         return true;
       }
+      appendEventLog('Chess: Rebuild Failed.');
 
-      appendEventLog('Chess: Rebuild Failed, trying Create...');
-
-      const result = await this.bridge.createStartUpPageContainer(container);
-      const success = result === 0;
-      if (!success) {
-        appendEventLog(`Chess: Create Failed (${result})`);
-        console.error('[EvenHubBridge] createStartUpPageContainer failed:', result);
-      } else {
+      // 2. Try Create (standard overwrite)
+      appendEventLog('Chess: Attempting CreateStartUpPage...');
+      let result = await this.bridge.createStartUpPageContainer(container);
+      if (result === 0) {
         appendEventLog('Chess: Create Success');
+        return true;
       }
-      return success;
+      appendEventLog(`Chess: Create Failed (${result}). Trying Shutdown+Create...`);
+
+      // 3. Force Shutdown and Retry Create (Nuke and Pave)
+      // ID 0 is the default page allowed to be shutdown
+      try {
+        await this.bridge.shutDownPageContainer(0);
+        // Brief delay to allow shutdown to propagate
+        await new Promise(r => setTimeout(r, 100));
+      } catch (shutdownErr) {
+        console.warn('Shutdown failed (maybe no page?):', shutdownErr);
+      }
+
+      result = await this.bridge.createStartUpPageContainer(container);
+      if (result === 0) {
+        appendEventLog('Chess: Shutdown+Create Success');
+        return true;
+      }
+
+      appendEventLog(`Chess: Final Create Failed (${result})`);
+      console.error('[EvenHubBridge] All setup attempts failed:', result);
+      return false;
+
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       appendEventLog(`Chess: setupPage Error: ${msg}`);
