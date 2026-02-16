@@ -149,11 +149,11 @@ async function handleMenuEvent(eventType: string, setStatus?: SetStatus): Promis
                 // This prevents layout conflicts (e.g. List vs Image IDs)
                 if (bridge) {
                     try {
-                        await bridge.shutDownPageContainer(0) 
+                        await bridge.shutDownPageContainer(0)
                         // Small delay to ensure shutdown processes
                         await new Promise(r => setTimeout(r, 100))
                     } catch (e) {
-                         console.warn('Pre-module shutdown failed', e)
+                        console.warn('Pre-module shutdown failed', e)
                     }
                 }
 
@@ -219,12 +219,12 @@ async function renderList(title: string, items: string[], selectedIndex: number)
         // Always Try Rebuild First (Smoother)
         let success = false
         if (!isFirstRender) {
-             try {
+            try {
                 success = await bridge.rebuildPageContainer(container)
                 if (success) appendEventLog('Rebuild List success')
-             } catch (err) {
+            } catch (err) {
                 console.warn('Rebuild failed, falling back to create', err)
-             }
+            }
         }
 
         if (!success) {
@@ -236,15 +236,15 @@ async function renderList(title: string, items: string[], selectedIndex: number)
                 textObject: container.textObject,
                 imageObject: []
             })
-            
+
             let res = await bridge.createStartUpPageContainer(startup)
             if (res !== 0) {
-                 // Try shutdown and retry
-                 appendEventLog(`Create failed (${res}), retrying with shutdown...`)
-                 try { await bridge.shutDownPageContainer(0); await new Promise(r => setTimeout(r, 100)); } catch { }
-                 res = await bridge.createStartUpPageContainer(startup)
+                // Try shutdown and retry
+                appendEventLog(`Create failed (${res}), retrying with shutdown...`)
+                try { await bridge.shutDownPageContainer(0); await new Promise(r => setTimeout(r, 100)); } catch { }
+                res = await bridge.createStartUpPageContainer(startup)
             }
-            
+
             if (res !== 0) throw new Error(`createStartUp res=${res}`)
             isFirstRender = false
             appendEventLog('Page Created (List) success')
@@ -292,12 +292,12 @@ async function renderText(title: string, body: string) {
         // Always Try Rebuild First
         let success = false
         if (!isFirstRender) {
-             try {
+            try {
                 success = await bridge.rebuildPageContainer(container)
                 if (success) appendEventLog('Rebuild Text success')
-             } catch (err) {
+            } catch (err) {
                 console.warn('Rebuild failed, falling back to create', err)
-             }
+            }
         }
 
         if (!success) {
@@ -307,12 +307,12 @@ async function renderText(title: string, body: string) {
                 textObject: container.textObject,
                 imageObject: []
             })
-            
+
             let res = await bridge.createStartUpPageContainer(startup)
             if (res !== 0) {
-                 appendEventLog(`Create Text failed (${res}), retrying with shutdown...`)
-                 try { await bridge.shutDownPageContainer(0); await new Promise(r => setTimeout(r, 100)); } catch { }
-                 res = await bridge.createStartUpPageContainer(startup)
+                appendEventLog(`Create Text failed (${res}), retrying with shutdown...`)
+                try { await bridge.shutDownPageContainer(0); await new Promise(r => setTimeout(r, 100)); } catch { }
+                res = await bridge.createStartUpPageContainer(startup)
             }
 
             if (res !== 0) throw new Error(`createStartUp res=${res}`)

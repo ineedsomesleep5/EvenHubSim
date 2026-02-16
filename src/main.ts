@@ -6,6 +6,7 @@
  * in-glasses menu. No dropdown — everything navigated
  * from the glasses themselves.
  */
+import './glasses-mock'
 import './styles.css'
 import type { AppActions } from '../apps/_shared/app-types'
 import { appendEventLog } from '../apps/_shared/log'

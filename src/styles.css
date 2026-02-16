@@ -412,6 +412,63 @@ body::before {
   padding: var(--space-md);
 }
 
+/* ── Mock Renderer Containers ──────────────────────────── */
+.glasses-container {
+  position: absolute;
+  overflow: hidden;
+}
+
+.glasses-container--text {
+  display: flex;
+  align-items: center;
+}
+
+.glasses-text {
+  color: #fff;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.glasses-container--image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.glasses-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.glasses-container--list {
+  display: flex;
+  align-items: center;
+}
+
+.glasses-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  color: #fff;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.glasses-list li {
+  padding: 1px 4px;
+  border: 1px solid transparent;
+}
+
+.glasses-list li:first-child {
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
 .glasses-preview__frame {
   display: flex;
   align-items: center;
