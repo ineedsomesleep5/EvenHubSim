@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Even Realities G2 Hub Simulator — Multi-application test environment for smart glasses development" />
+  <title>Even Hub Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/styles.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- ── Header ─────────────────────────────────────────── -->
+    <header class="hub-header">
+      <div class="hub-header__brand">
+        <div class="hub-logo">
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+            <rect width="32" height="32" rx="8" fill="url(#logo-grad)" />
+            <path d="M8 16C8 11.582 11.582 8 16 8C20.418 8 24 11.582 24 16" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+            <circle cx="16" cy="20" r="3" fill="white"/>
+            <defs>
+              <linearGradient id="logo-grad" x1="0" y1="0" x2="32" y2="32">
+                <stop stop-color="#6366f1"/>
+                <stop offset="1" stop-color="#a855f7"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <div>
+          <h1 class="hub-header__title" id="page-title">Even Hub Simulator</h1>
+          <p class="hub-header__subtitle">G2 Smart Glasses Development Environment</p>
+        </div>
+      </div>
+      <div class="hub-header__controls">
+        <label class="app-selector">
+          <span class="app-selector__label">App</span>
+          <select id="app-select" class="app-selector__select">
+            <option value="">Loading…</option>
+          </select>
+        </label>
+      </div>
+    </header>
+
+    <!-- ── Main Content ───────────────────────────────────── -->
+    <main class="hub-main">
+      <!-- Status Card -->
+      <section class="card card--status">
+        <div class="card__header">
+          <div class="status-indicator" id="status-dot"></div>
+          <h2 class="card__title">Status</h2>
+        </div>
+        <p class="status-text" id="status">Initializing…</p>
+      </section>
+
+      <!-- Actions Card -->
+      <section class="card card--actions">
+        <h2 class="card__title">Controls</h2>
+        <div class="action-buttons">
+          <button id="btn-connect" class="btn btn--primary" disabled>
+            <svg class="btn__icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M2 8h12M10 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span id="btn-connect-label">Connect</span>
+          </button>
+          <button id="btn-action" class="btn btn--secondary" disabled>
+            <svg class="btn__icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <polygon points="5,3 13,8 5,13" fill="currentColor"/>
+            </svg>
+            <span id="btn-action-label">Action</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Glasses Display Preview -->
+      <section class="card card--display">
+        <h2 class="card__title">Glasses Display Preview</h2>
+        <div class="glasses-preview">
+          <div class="glasses-preview__screen" id="glasses-screen">
+            <p class="glasses-preview__placeholder">Connect an app to see the glasses display</p>
+          </div>
+          <div class="glasses-preview__frame">
+            <span class="glasses-preview__lens glasses-preview__lens--left"></span>
+            <span class="glasses-preview__bridge"></span>
+            <span class="glasses-preview__lens glasses-preview__lens--right"></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Event Log -->
+      <section class="card card--log">
+        <div class="card__header">
+          <h2 class="card__title">Event Log</h2>
+          <button id="btn-clear-log" class="btn btn--ghost btn--sm">Clear</button>
+        </div>
+        <div class="event-log" id="event-log">
+          <p class="event-log__empty">No events yet</p>
+        </div>
+      </section>
+    </main>
+
+    <!-- ── Footer ─────────────────────────────────────────── -->
+    <footer class="hub-footer">
+      <p>Even Hub Simulator &middot; Built for <strong>Even Realities G2</strong></p>
+    </footer>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
