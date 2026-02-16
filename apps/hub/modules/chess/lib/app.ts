@@ -105,7 +105,9 @@ export async function createChessApp(): Promise<ChessApp> {
   const CONTAINER_READY_MS = 50;
 
   try {
-    await Promise.all([hub.init(), turnLoop.init()]);
+    await hub.init();
+    // Initialize engine without blocking UI; it will fallback if needed
+    turnLoop.init().catch(err => console.warn('[EvenChess] Engine init warning:', err));
 
     const startupPage = composeStartupPage(store.getState());
     await hub.setupPage(startupPage);

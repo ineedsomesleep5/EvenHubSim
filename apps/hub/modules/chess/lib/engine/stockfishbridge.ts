@@ -117,7 +117,14 @@ export class StockfishBridge {
         }
       };
 
+      const onError = (e: ErrorEvent) => {
+        clearTimeout(timeout);
+        console.warn('[StockfishBridge] Worker error:', e.message);
+        reject(new Error('worker error'));
+      };
+
       this.worker.addEventListener('message', onMessage);
+      this.worker.addEventListener('error', onError);
       this.send('uci');
     });
   }
