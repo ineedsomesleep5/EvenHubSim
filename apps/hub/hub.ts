@@ -126,7 +126,7 @@ async function handleEvent(event: EvenHubEvent): Promise<void> {
     } else if (currentView === 'menu') {
         await handleMenuEvent(eventType, hubSetStatus)
     } else if (activeModule) {
-        await activeModule.handleEvent(eventType)
+        await activeModule.handleEvent(eventType, event)
     }
 }
 
@@ -290,11 +290,90 @@ async function showMenu() {
     await renderList('── Even Hub ──', items, menuIndex)
 }
 
+// ── Image Rendering ────────────────────────────────────────
+
+import {
+    ImageRawDataUpdate,
+    ImageContainerProperty
+} from '@evenrealities/even_hub_sdk'
+
+// Constants for Chess Layout
+const ID_CHESS_TEXT = 1
+const ID_CHESS_IMG_TOP = 2
+const ID_CHESS_IMG_BOT = 3
+
+async function renderImages(updates: ImageRawDataUpdate[]) {
+    if (!bridge) return
+    for (const update of updates) {
+        try {
+            await bridge.updateImageRawData(update)
+        } catch (err) {
+            console.error('Failed to update image:', err)
+        }
+    }
+}
+
+async function setupChessLayout() {
+    if (!bridge) return
+    appendEventLog('Setting up Chess Layout')
+
+    // G2 display constants
+    const DISPLAY_HEIGHT = 288
+    const IMAGE_WIDTH = 200
+    const IMAGE_HEIGHT = 100
+    const RIGHT_X = 376
+    const LEFT_WIDTH = 368
+    const boardTopY = Math.floor((DISPLAY_HEIGHT - IMAGE_HEIGHT * 2) / 2)
+
+    const container = new RebuildPageContainer({
+        textObject: [
+            new TextContainerProperty({
+                containerID: ID_CHESS_TEXT,
+                containerName: 'chess-hud',
+                content: 'Chess\nLoading...',
+                xPosition: 0,
+                yPosition: 0,
+                width: LEFT_WIDTH,
+                height: DISPLAY_HEIGHT,
+                isEventCapture: 1
+            })
+        ],
+        imageObject: [
+            new ImageContainerProperty({
+                containerID: ID_CHESS_IMG_TOP,
+                containerName: 'board-top',
+                xPosition: RIGHT_X,
+                yPosition: boardTopY,
+                width: IMAGE_WIDTH,
+                height: IMAGE_HEIGHT
+            }),
+            new ImageContainerProperty({
+                containerID: ID_CHESS_IMG_BOT,
+                containerName: 'board-bot',
+                xPosition: RIGHT_X,
+                yPosition: boardTopY + IMAGE_HEIGHT,
+                width: IMAGE_WIDTH,
+                height: IMAGE_HEIGHT
+            })
+        ],
+        listObject: []
+    })
+
+    try {
+        await bridge.rebuildPageContainer(container)
+        ignoreEventsUntil = Date.now() + 500
+    } catch (err) {
+        console.error('Setup chess layout failed:', err)
+    }
+}
+
 function createRenderer(): HubRenderer {
     return {
         async renderMenu(items, idx) { await renderList('── Even Hub ──', items, idx) },
         async renderText(t, b) { await renderText(t, b) },
-        async renderList(t, i, idx) { await renderList(t, i, idx) }
+        async renderList(t, i, idx) { await renderList(t, i, idx) },
+        async renderImages(updates) { await renderImages(updates) },
+        async setupChessLayout() { await setupChessLayout() }
     }
 }
 
