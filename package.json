@@ -12,7 +12,8 @@
   "dependencies": {
     "@evenrealities/even_hub_sdk": "^0.0.7",
     "@jappyjan/even-better-sdk": "^0.0.8",
-    "@jappyjan/even-realities-ui": "^0.0.8"
+    "@jappyjan/even-realities-ui": "^0.0.8",
+    "chess.js": "^1.4.0"
   },
   "devDependencies": {
     "@vercel/node": "^5.1.8",
