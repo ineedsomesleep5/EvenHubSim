@@ -2,13 +2,20 @@
  * Unified Hub — Orchestrates the main menu and all sub-modules
  * on the Even G2 glasses display.
  *
- * Uses EvenBetterSdk (proven to render correctly on G2 glasses)
- * instead of the raw even_hub_sdk, which has tricky initialization
- * requirements (createStartUpPageContainer only once, etc.).
+ * Uses RAW even_hub_sdk directly for maximum control over rendering.
+ * EvenBetterSdk wrapper was causing display update failures on page switching.
  */
-import { EvenBetterSdk, EvenBetterPage, EvenBetterListElement, EvenBetterTextElement } from '@jappyjan/even-better-sdk'
-import type { EvenHubEvent } from '@evenrealities/even_hub_sdk'
-import { OsEventTypeList } from '@evenrealities/even_hub_sdk'
+import {
+    waitForEvenAppBridge,
+    EvenAppBridge,
+    EvenHubEvent,
+    OsEventTypeList,
+    CreateStartUpPageContainer,
+    RebuildPageContainer,
+    ListContainerProperty,
+    ListItemContainerProperty,
+    TextContainerProperty,
+} from '@evenrealities/even_hub_sdk'
 import type { AppActions, SetStatus } from '../_shared/app-types'
 import { appendEventLog } from '../_shared/log'
 import type { HubRenderer, SubModule } from './types'
@@ -18,12 +25,13 @@ import { createRedditModule } from './modules/reddit'
 import { createChessModule } from './modules/chess'
 import { createRestApiModule } from './modules/restapi'
 
-// ── SDK state ──────────────────────────────────────────────
-let sdk: EvenBetterSdk | null = null
+// ── SDK State ──────────────────────────────────────────────
+let bridge: EvenAppBridge | null = null
 let connected = false
-let ignoreEventsUntil = 0 // Timestamp to ignore events (debounce/refractory period)
+let ignoreEventsUntil = 0
+let isFirstRender = true
 
-// ── Navigation state ───────────────────────────────────────
+// ── Navigation State ───────────────────────────────────────
 type View = 'menu' | string
 let currentView: View = 'menu'
 let menuIndex = 0
@@ -31,153 +39,24 @@ let modules: SubModule[] = []
 let activeModule: SubModule | null = null
 let hubSetStatus: SetStatus = () => { }
 
-// ── Cached Rendering Elements ──────────────────────────────
-// We must cache elements because creating new ones typically appends to the page
-// instead of replacing, causing the display to stack or fail to update.
-
-interface ListPageCache {
-    page: EvenBetterPage
-    title: EvenBetterTextElement
-    list: EvenBetterListElement
-}
-
-interface TextPageCache {
-    page: EvenBetterPage
-    title: EvenBetterTextElement
-    body: EvenBetterTextElement
-}
-
-let listCache: ListPageCache | null = null
-let textCache: TextPageCache | null = null
-
-function resetCache() {
-    listCache = null
-    textCache = null
-}
-
-function getListPage(): ListPageCache {
-    if (!sdk) throw new Error('SDK not initialized')
-    if (listCache) return listCache
-
-    const page = sdk.createPage('hub-list')
-
-    const title = page.addTextElement('') as EvenBetterTextElement
-    title.setPosition(p => p.setX(8).setY(0))
-        .setSize(s => s.setWidth(560).setHeight(32))
-
-    // Use slightly different Y for list to ensure clear separation
-    const list = page.addListElement([]) as EvenBetterListElement
-    list.setPosition(p => p.setX(4).setY(36))
-        .setSize(s => s.setWidth(568).setHeight(250))
-
-    list.setIsItemSelectBorderEn(true)
-    list.markAsEventCaptureElement()
-
-    listCache = { page, title, list }
-    return listCache
-}
-
-function getTextPage(): TextPageCache {
-    if (!sdk) throw new Error('SDK not initialized')
-    if (textCache) return textCache
-
-    const page = sdk.createPage('hub-text')
-
-    const title = page.addTextElement('') as EvenBetterTextElement
-    title.setPosition(p => p.setX(8).setY(0))
-        .setSize(s => s.setWidth(560).setHeight(32))
-
-    const body = page.addTextElement('') as EvenBetterTextElement
-    body.setPosition(p => p.setX(8).setY(36))
-        .setSize(s => s.setWidth(560).setHeight(250))
-
-    body.markAsEventCaptureElement()
-
-    textCache = { page, title, body }
-    return textCache
-}
-
-// ── Rendering ──────────────────────────────────────────────
-
-async function renderList(title: string, items: string[], selectedIndex: number): Promise<void> {
-    if (!sdk) return
-    try {
-        const { page, title: titleEl, list: listEl } = getListPage()
-
-        // Update content
-        titleEl.setContent(title)
-        listEl.setItems(items)
-        listEl.setIsItemSelectBorderEn(true) // Ensure border is on for menu
-
-        // Note: SDK doesn't expose a way to set selection index programmatically
-        // So we just render. The glasses manage current selection.
-
-        await page.render()
-        ignoreEventsUntil = Date.now() + 500 // Ignore events for 500ms (prevent phantom clicks from ack)
-        appendEventLog(`[hub] rendered list: ${items.length} items`)
-    } catch (err) {
-        console.error('[hub] render list error', err)
-        appendEventLog(`[hub] render error: ${err instanceof Error ? err.message : String(err)}`)
-    }
-}
-
-async function renderText(title: string, body: string): Promise<void> {
-    if (!sdk) return
-    try {
-        const { page, title: titleEl, body: bodyEl } = getTextPage()
-
-        // Update content
-        titleEl.setContent(title)
-        bodyEl.setContent(body)
-        if (listCache) listCache.list.setIsItemSelectBorderEn(false) // Disable selection border on text pages?
-
-        await page.render()
-        ignoreEventsUntil = Date.now() + 500 // Ignore events for 500ms
-        appendEventLog(`[hub] rendered text: ${title}`)
-    } catch (err) {
-        console.error('[hub] render text error', err)
-        appendEventLog(`[hub] render error: ${err instanceof Error ? err.message : String(err)}`)
-    }
-}
-
-// ── HubRenderer for sub-modules ────────────────────────────
-
-function createRenderer(): HubRenderer {
-    return {
-        async renderMenu(items, selectedIndex) {
-            await renderList('── Even Hub ──', items, selectedIndex)
-        },
-        async renderText(title, body) {
-            await renderText(title, body)
-        },
-        async renderList(title, items, selectedIndex) {
-            await renderList(title, items, selectedIndex)
-        },
-    }
-}
-
-// ── Event handling ─────────────────────────────────────────
+// ── Event Handling Logic ───────────────────────────────────
 
 function detectEventType(event: EvenHubEvent): 'up' | 'down' | 'click' | 'double' | null {
-    // Check refractory period
     if (Date.now() < ignoreEventsUntil) return null
 
-    // Gather all possible eventType values
+    // 1. Explicit event types
     const sources: unknown[] = []
-
     if (event.listEvent?.eventType !== undefined) sources.push(event.listEvent.eventType)
     if (event.textEvent?.eventType !== undefined) sources.push(event.textEvent.eventType)
     if (event.sysEvent?.eventType !== undefined) sources.push(event.sysEvent.eventType)
 
-    // Also check jsonData for any eventType-like fields
+    // Check jsonData fallback
     const raw = (event.jsonData ?? {}) as Record<string, unknown>
     for (const key of ['eventType', 'event_type', 'Event_Type', 'type']) {
         if (raw[key] !== undefined) sources.push(raw[key])
     }
 
-    // Try each source
     for (const src of sources) {
-        // Number check (enum values: 0=click, 1=scrollUp, 2=scrollDown, 3=doubleClick)
         const num = typeof src === 'number' ? src : (typeof src === 'string' && /^\d+$/.test(src) ? parseInt(src, 10) : null)
         if (num !== null) {
             switch (num) {
@@ -187,8 +66,6 @@ function detectEventType(event: EvenHubEvent): 'up' | 'down' | 'click' | 'double
                 case 3: return 'double'
             }
         }
-
-        // String check
         if (typeof src === 'string') {
             const v = src.toUpperCase()
             if (v.includes('DOUBLE')) return 'double'
@@ -198,18 +75,15 @@ function detectEventType(event: EvenHubEvent): 'up' | 'down' | 'click' | 'double
         }
     }
 
-    // Infer from list selection index change
+    // 2. Fallback: List index change
     if (event.listEvent && typeof event.listEvent.currentSelectItemIndex === 'number') {
         const idx = event.listEvent.currentSelectItemIndex
-        // Only infer scroll if index CHANGED.
-        // DO NOT infer click if index is same (it might be a heartbeat).
         if (idx > menuIndex) return 'down'
         if (idx < menuIndex) return 'up'
-        return 'click' // <--- RESTORED: Unchanged index = click (after debounce)
+        return 'click' // Unchanged index = click
     }
 
-    // Infer from text/sys event presence (no index to check)
-    // If we get a text event and it wasn't caught by explicit type check, it's a click.
+    // 3. Fallback: Text/Sys event presence
     if (event.textEvent || event.sysEvent) {
         return 'click'
     }
@@ -217,20 +91,15 @@ function detectEventType(event: EvenHubEvent): 'up' | 'down' | 'click' | 'double
     return null
 }
 
-// Track last reported list index from the SDK
-let lastListIndex = 0
-
 async function handleEvent(event: EvenHubEvent): Promise<void> {
-    // Log raw event for debugging
     const rawSummary = JSON.stringify({
-        list: event.listEvent ? { et: event.listEvent.eventType, idx: event.listEvent.currentSelectItemIndex, name: event.listEvent.currentSelectItemName } : null,
+        list: event.listEvent ? { et: event.listEvent.eventType, idx: event.listEvent.currentSelectItemIndex } : null,
         text: event.textEvent ? { et: event.textEvent.eventType } : null,
         sys: event.sysEvent ? { et: event.sysEvent.eventType } : null,
-        json: event.jsonData // <--- ADDED: Log the full JSON payload
+        json: event.jsonData
     })
     appendEventLog(`Raw: ${rawSummary}`)
 
-    // Sync menuIndex from list selection (the SDK tracks the actual selection)
     if (currentView === 'menu' && event.listEvent && typeof event.listEvent.currentSelectItemIndex === 'number') {
         const sdkIdx = event.listEvent.currentSelectItemIndex
         if (sdkIdx >= 0 && sdkIdx < modules.length) {
@@ -240,13 +109,12 @@ async function handleEvent(event: EvenHubEvent): Promise<void> {
 
     const eventType = detectEventType(event)
     if (!eventType) {
-        appendEventLog(`Event: unrecognized`)
+        appendEventLog(`Event: recognized (ignored/null)`)
         return
     }
 
-    appendEventLog(`Event: ${eventType} (view=${currentView}, menuIdx=${menuIndex})`)
+    appendEventLog(`Event: ${eventType} (view=${currentView})`)
 
-    // Double-click always goes back to menu
     if (eventType === 'double' && currentView !== 'menu') {
         if (activeModule) activeModule.leave()
         activeModule = null
@@ -255,16 +123,14 @@ async function handleEvent(event: EvenHubEvent): Promise<void> {
         appendEventLog('Back to menu')
         await showMenu()
         return
-    }
-
-    if (currentView === 'menu') {
+    } else if (currentView === 'menu') {
         await handleMenuEvent(eventType, hubSetStatus)
     } else if (activeModule) {
         await activeModule.handleEvent(eventType)
     }
 }
 
-async function handleMenuEvent(eventType: 'up' | 'down' | 'click' | 'double', setStatus?: SetStatus): Promise<void> {
+async function handleMenuEvent(eventType: string, setStatus?: SetStatus): Promise<void> {
     if (eventType === 'up') {
         menuIndex = Math.max(0, menuIndex - 1)
         await showMenu()
@@ -274,7 +140,7 @@ async function handleMenuEvent(eventType: 'up' | 'down' | 'click' | 'double', se
     } else if (eventType === 'click') {
         const mod = modules[menuIndex]
         if (mod) {
-            appendEventLog(`>>> ENTERING ${mod.label} (menuIdx=${menuIndex})`)
+            appendEventLog(`>>> ENTERING ${mod.label}`)
             if (setStatus) setStatus(`Entering ${mod.label}...`)
             activeModule = mod
             currentView = mod.id
@@ -284,23 +150,154 @@ async function handleMenuEvent(eventType: 'up' | 'down' | 'click' | 'double', se
             } catch (err) {
                 const msg = err instanceof Error ? err.message : String(err)
                 appendEventLog(`>>> ${mod.label} FAILED: ${msg}`)
-                console.error(`[hub] module ${mod.label} enter failed:`, err)
-                if (setStatus) setStatus(`Error entering ${mod.label}: ${msg}`)
-                // Fall back to menu
+                // Fall back
                 activeModule = null
                 currentView = 'menu'
                 await showMenu()
             }
-        } else {
-            appendEventLog(`>>> No module at index ${menuIndex}`)
         }
     }
 }
 
-async function showMenu(): Promise<void> {
-    const items = modules.map((m) => m.label)
+// ── Rendering Primitives (Raw SDK) ─────────────────────────
+
+// Fixed IDs for reliable updates
+const ID_TITLE = 1
+const ID_BODY_LIST = 2
+const ID_BODY_TEXT = 3
+
+async function renderList(title: string, items: string[], selectedIndex: number) {
+    if (!bridge) return
+    appendEventLog(`Rendering List: ${title}`)
+
+    // Construct payload
+    const itemContainer = new ListItemContainerProperty({
+        itemCount: items.length,
+        itemWidth: 568,
+        isItemSelectBorderEn: 1, // 1 = enabled
+        itemName: items
+    })
+
+    const container = new RebuildPageContainer({
+        listObject: [new ListContainerProperty({
+            containerID: ID_BODY_LIST,
+            containerName: 'list_main',
+            itemContainer: itemContainer,
+            xPosition: 4,
+            yPosition: 36,
+            width: 568,
+            height: 250,
+            isEventCapture: 1
+        })],
+        textObject: [new TextContainerProperty({
+            containerID: ID_TITLE,
+            containerName: 'title',
+            content: title,
+            xPosition: 8,
+            yPosition: 0,
+            width: 560,
+            height: 32,
+            isEventCapture: 0
+        })],
+        // Ensure image object is cleared
+        imageObject: []
+    })
+
+    try {
+        if (isFirstRender) {
+            // Must use CreateStartUpPageContainer for first render
+            // Map Rebuild to Create
+            const startup = new CreateStartUpPageContainer({
+                containerTotalNum: 2,
+                listObject: container.listObject,
+                textObject: container.textObject,
+                imageObject: []
+            })
+            const res = await bridge.createStartUpPageContainer(startup)
+            if (res !== 0) throw new Error(`createStartUp res=${res}`)
+            isFirstRender = false
+            appendEventLog('First render (Create) success')
+        } else {
+            const success = await bridge.rebuildPageContainer(container)
+            if (!success) throw new Error('rebuild returned false')
+            appendEventLog('Rebuild List success')
+        }
+        ignoreEventsUntil = Date.now() + 500
+    } catch (err) {
+        console.error('Render list failed:', err)
+        appendEventLog(`Render list failed: ${err}`)
+    }
+}
+
+async function renderText(title: string, body: string) {
+    if (!bridge) return
+    appendEventLog(`Rendering Text: ${title}`)
+
+    const container = new RebuildPageContainer({
+        textObject: [
+            new TextContainerProperty({
+                containerID: ID_TITLE,
+                containerName: 'title',
+                content: title,
+                xPosition: 8,
+                yPosition: 0,
+                width: 560,
+                height: 32,
+                isEventCapture: 0
+            }),
+            new TextContainerProperty({
+                containerID: ID_BODY_TEXT, // Different ID from list
+                containerName: 'text_body',
+                content: body,
+                xPosition: 8,
+                yPosition: 36,
+                width: 560,
+                height: 250,
+                isEventCapture: 1
+            })
+        ],
+        // Send empty listObject to hide list
+        listObject: [],
+        imageObject: []
+    })
+
+    try {
+        if (isFirstRender) {
+            const startup = new CreateStartUpPageContainer({
+                containerTotalNum: 2,
+                listObject: [],
+                textObject: container.textObject,
+                imageObject: []
+            })
+            const res = await bridge.createStartUpPageContainer(startup)
+            if (res !== 0) throw new Error(`createStartUp res=${res}`)
+            isFirstRender = false
+            appendEventLog('First render (Create) success')
+        } else {
+            const success = await bridge.rebuildPageContainer(container)
+            if (!success) throw new Error('rebuild returned false')
+            appendEventLog('Rebuild Text success')
+        }
+        ignoreEventsUntil = Date.now() + 500
+    } catch (err) {
+        console.error('Render text failed:', err)
+        appendEventLog(`Render text failed: ${err}`)
+    }
+}
+
+async function showMenu() {
+    const items = modules.map(m => m.label)
     await renderList('── Even Hub ──', items, menuIndex)
 }
+
+function createRenderer(): HubRenderer {
+    return {
+        async renderMenu(items, idx) { await renderList('── Even Hub ──', items, idx) },
+        async renderText(t, b) { await renderText(t, b) },
+        async renderList(t, i, idx) { await renderList(t, i, idx) }
+    }
+}
+
 
 // ── Public API ─────────────────────────────────────────────
 
@@ -308,7 +305,6 @@ export function createHubActions(setStatus: SetStatus): AppActions {
     hubSetStatus = setStatus
     const renderer = createRenderer()
 
-    // Create all sub-modules
     modules = [
         createClockModule(renderer, setStatus),
         createTimerModule(renderer, setStatus),
@@ -317,65 +313,49 @@ export function createHubActions(setStatus: SetStatus): AppActions {
         createRestApiModule(renderer, setStatus),
     ]
 
-    // Eagerly initialize SDK
-    resetCache()
-    sdk = new EvenBetterSdk()
-
-    // Auto-connect: try immediately
+    // Initialize Bridge
     void (async () => {
-        appendEventLog('Hub: auto-connecting...')
+        appendEventLog('Hub: waiting for bridge...')
         try {
-            const bridge = await EvenBetterSdk.getRawBridge()
+            bridge = await waitForEvenAppBridge()
             if (bridge) {
                 connected = true
-                sdk!.addEventListener((event) => void handleEvent(event))
+                isFirstRender = true // Reset on new bridge connection
+                bridge.onEvenHubEvent(handleEvent)
                 currentView = 'menu'
                 menuIndex = 0
                 await showMenu()
                 setStatus('Connected — use glasses to navigate')
-                appendEventLog('Hub: auto-connected')
+                appendEventLog('Hub: Bridge connected')
             }
         } catch (err) {
-            appendEventLog('Hub: auto-connect failed, press Connect')
-            console.log('[hub] auto-connect failed:', err)
+            appendEventLog('Hub: Bridge init failed')
+            console.error(err)
         }
     })()
 
     return {
         async connect() {
-            if (connected) {
+            if (connected && bridge) {
                 // Reset to menu
                 if (activeModule) { activeModule.leave(); activeModule = null }
                 currentView = 'menu'
                 menuIndex = 0
                 await showMenu()
-                setStatus('Connected — use glasses to navigate')
                 return
             }
-
-            setStatus('Connecting...')
-            appendEventLog('Hub: manual connect')
-
+            // If not connected, the auto-connect above effectively handles it via reload
+            // But we can try to re-init
+            setStatus('Reconnecting...')
             try {
-                resetCache()
-                sdk = new EvenBetterSdk()
-                const bridge = await EvenBetterSdk.getRawBridge()
-                if (bridge) {
-                    connected = true
-                    sdk.addEventListener((event) => void handleEvent(event))
-                    currentView = 'menu'
-                    menuIndex = 0
-                    await showMenu()
-                    setStatus('Connected — use glasses to navigate')
-                    appendEventLog('Hub: connected')
-                } else {
-                    setStatus('Bridge not available — mock mode')
-                    appendEventLog('Hub: no bridge found')
-                }
+                bridge = await waitForEvenAppBridge()
+                connected = true
+                isFirstRender = true
+                bridge.onEvenHubEvent(handleEvent)
+                await showMenu()
+                setStatus('Connected')
             } catch (err) {
                 setStatus('Connection failed')
-                appendEventLog(`Hub: error — ${err instanceof Error ? err.message : String(err)}`)
-                console.error('[hub] connect error:', err)
             }
         },
         async action() {
