@@ -12,6 +12,7 @@ import {
   type EvenHubEvent,
   ImageRawDataUpdateResult,
 } from '@evenrealities/even_hub_sdk';
+import { appendEventLog } from '../../../../_shared/log';
 
 export type EvenHubEventHandler = (event: EvenHubEvent) => void;
 
@@ -43,27 +44,33 @@ export class EvenHubBridge {
 
   async setupPage(container: CreateStartUpPageContainer): Promise<boolean> {
     if (!this.bridge) {
-      console.log('[EvenHubBridge] No bridge — skipping setupPage.');
+      appendEventLog('Chess: No bridge for setupPage');
       return false;
     }
 
     try {
       // Try Rebuild first (likely hosted mode)
-      // We cast to any because the structure is identical for our purposes, 
-      // or we can construct a RebuildPageContainer if we imported it.
-      // properties matches.
+      appendEventLog('Chess: Attempting Page Rebuild...');
       const rebuildSuccess = await this.bridge.rebuildPageContainer(container as any);
-      if (rebuildSuccess) return true;
+      if (rebuildSuccess) {
+        appendEventLog('Chess: Rebuild Success');
+        return true;
+      }
 
-      console.warn('[EvenHubBridge] Rebuild failed, attempting CreateStartUp...');
+      appendEventLog('Chess: Rebuild Failed, trying Create...');
 
       const result = await this.bridge.createStartUpPageContainer(container);
       const success = result === 0;
       if (!success) {
+        appendEventLog(`Chess: Create Failed (${result})`);
         console.error('[EvenHubBridge] createStartUpPageContainer failed:', result);
+      } else {
+        appendEventLog('Chess: Create Success');
       }
       return success;
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      appendEventLog(`Chess: setupPage Error: ${msg}`);
       console.error('[EvenHubBridge] setupPage error:', err);
       return false;
     }
@@ -162,4 +169,3 @@ export class EvenHubBridge {
     }
   }
 }
-

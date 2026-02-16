@@ -13,10 +13,10 @@ import type { GameState } from '../state/contracts';
 import { getCombinedDisplayText } from '../state/selectors';
 import { DISPLAY_WIDTH } from '../state/constants';
 
-const CONTAINER_ID_TEXT = 20;
-const CONTAINER_ID_IMAGE_TOP = 21;
-const CONTAINER_ID_IMAGE_BOTTOM = 22;
-const CONTAINER_ID_BRAND = 23;
+const CONTAINER_ID_TEXT = 1;
+const CONTAINER_ID_IMAGE_TOP = 2;
+const CONTAINER_ID_IMAGE_BOTTOM = 3;
+const CONTAINER_ID_BRAND = 4;
 
 const CONTAINER_NAME_TEXT = 'chess-hud';
 const CONTAINER_NAME_IMAGE_TOP = 'board-top';
