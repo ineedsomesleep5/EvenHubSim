@@ -12,7 +12,7 @@ import {
   type EvenHubEvent,
   ImageRawDataUpdateResult,
 } from '@evenrealities/even_hub_sdk';
-import { appendEventLog } from '../../../../_shared/log';
+import { appendEventLog } from '../../../../../_shared/log';
 
 export type EvenHubEventHandler = (event: EvenHubEvent) => void;
 
