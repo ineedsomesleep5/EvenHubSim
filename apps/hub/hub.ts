@@ -204,8 +204,19 @@ async function renderList(title: string, items: string[], selectedIndex: number)
     })
 
     try {
-        if (isFirstRender) {
-            // Must use CreateStartUpPageContainer for first render
+        // Always Try Rebuild First (Smoother)
+        let success = false
+        if (!isFirstRender) {
+             try {
+                success = await bridge.rebuildPageContainer(container)
+                if (success) appendEventLog('Rebuild List success')
+             } catch (err) {
+                console.warn('Rebuild failed, falling back to create', err)
+             }
+        }
+
+        if (!success) {
+            // Fallback to Create if Rebuild fails or is first render
             // Map Rebuild to Create
             const startup = new CreateStartUpPageContainer({
                 containerTotalNum: 2,
@@ -213,14 +224,18 @@ async function renderList(title: string, items: string[], selectedIndex: number)
                 textObject: container.textObject,
                 imageObject: []
             })
-            const res = await bridge.createStartUpPageContainer(startup)
+            
+            let res = await bridge.createStartUpPageContainer(startup)
+            if (res !== 0) {
+                 // Try shutdown and retry
+                 appendEventLog(`Create failed (${res}), retrying with shutdown...`)
+                 try { await bridge.shutDownPageContainer(0); await new Promise(r => setTimeout(r, 100)); } catch { }
+                 res = await bridge.createStartUpPageContainer(startup)
+            }
+            
             if (res !== 0) throw new Error(`createStartUp res=${res}`)
             isFirstRender = false
-            appendEventLog('First render (Create) success')
-        } else {
-            const success = await bridge.rebuildPageContainer(container)
-            if (!success) throw new Error('rebuild returned false')
-            appendEventLog('Rebuild List success')
+            appendEventLog('Page Created (List) success')
         }
         ignoreEventsUntil = Date.now() + 500
     } catch (err) {
@@ -262,21 +277,35 @@ async function renderText(title: string, body: string) {
     })
 
     try {
-        if (isFirstRender) {
+        // Always Try Rebuild First
+        let success = false
+        if (!isFirstRender) {
+             try {
+                success = await bridge.rebuildPageContainer(container)
+                if (success) appendEventLog('Rebuild Text success')
+             } catch (err) {
+                console.warn('Rebuild failed, falling back to create', err)
+             }
+        }
+
+        if (!success) {
             const startup = new CreateStartUpPageContainer({
                 containerTotalNum: 2,
                 listObject: [],
                 textObject: container.textObject,
                 imageObject: []
             })
-            const res = await bridge.createStartUpPageContainer(startup)
+            
+            let res = await bridge.createStartUpPageContainer(startup)
+            if (res !== 0) {
+                 appendEventLog(`Create Text failed (${res}), retrying with shutdown...`)
+                 try { await bridge.shutDownPageContainer(0); await new Promise(r => setTimeout(r, 100)); } catch { }
+                 res = await bridge.createStartUpPageContainer(startup)
+            }
+
             if (res !== 0) throw new Error(`createStartUp res=${res}`)
             isFirstRender = false
-            appendEventLog('First render (Create) success')
-        } else {
-            const success = await bridge.rebuildPageContainer(container)
-            if (!success) throw new Error('rebuild returned false')
-            appendEventLog('Rebuild Text success')
+            appendEventLog('Page Created (Text) success')
         }
         ignoreEventsUntil = Date.now() + 500
     } catch (err) {
