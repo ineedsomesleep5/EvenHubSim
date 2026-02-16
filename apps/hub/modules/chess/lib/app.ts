@@ -29,6 +29,7 @@ import { PROFILE_BY_DIFFICULTY } from './engine/profiles';
 import { saveGame, loadGame, clearSave, saveDifficulty, loadDifficulty, saveBoardMarkers, loadBoardMarkers } from './storage/persistence';
 import type { ImageRawDataUpdate } from '@evenrealities/even_hub_sdk';
 import { MENU_OPTIONS } from './state/constants';
+import { appendEventLog } from '../../../../_shared/log';
 import { STARTING_FEN } from './academy/pgn';
 import { moveCursorAxis } from './academy/drills';
 import { getFileIndex, getRankIndex } from './chess/square-utils';
@@ -105,26 +106,51 @@ export async function createChessApp(externalBridge?: any): Promise<ChessApp> {
   const CONTAINER_READY_MS = 50;
 
   try {
+    appendEventLog('Chess: init bridge...');
     await hub.init();
     // Initialize engine without blocking UI; it will fallback if needed
     turnLoop.init().catch(err => console.warn('[EvenChess] Engine init warning:', err));
 
+    appendEventLog('Chess: composing startup page...');
     const startupPage = composeStartupPage(store.getState());
-    await hub.setupPage(startupPage);
+    const pageOk = await hub.setupPage(startupPage);
+    appendEventLog(`Chess: setupPage result=${pageOk}`);
+    if (!pageOk) {
+      appendEventLog('Chess: FAILED to create page — aborting image send');
+      throw new Error('setupPage failed');
+    }
 
     const state = store.getState();
     const containerReady = new Promise<void>((r) => setTimeout(r, CONTAINER_READY_MS));
+    appendEventLog('Chess: rendering board PNG...');
     const boardPromise = boardRenderer.renderPngAsync(state, chess, 0);
 
     await containerReady;
     let initialImages = await boardPromise;
+    appendEventLog(`Chess: PNG render got ${initialImages.length} images`);
     if (initialImages.length === 0) {
+      appendEventLog('Chess: PNG empty, falling back to BMP...');
       initialImages = boardRenderer.renderFull(state, chess);
+      appendEventLog(`Chess: BMP render got ${initialImages.length} images`);
     }
-    console.log('[EvenChess] Sending initial board images:', initialImages.length);
-    await sendImages(hub, initialImages);
+
+    if (initialImages.length > 0) {
+      appendEventLog(`Chess: sending ${initialImages.length} board images...`);
+      for (const img of initialImages) {
+        appendEventLog(`Chess: img id=${img.containerID} name=${img.containerName} bytes=${img.imageData ? (img.imageData as any).length ?? '?' : 0}`);
+      }
+      await sendImages(hub, initialImages);
+      appendEventLog('Chess: board images sent OK');
+    } else {
+      appendEventLog('Chess: WARNING — no images to send!');
+    }
+
+    appendEventLog('Chess: sending branding image...');
     await hub.updateBoardImage(renderBrandingImage());
+    appendEventLog('Chess: init complete');
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    appendEventLog(`Chess: INIT FAILED: ${msg}`);
     console.error('[EvenChess] Initialization failed:', err);
   }
 
