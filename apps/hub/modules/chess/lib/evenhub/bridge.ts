@@ -48,6 +48,15 @@ export class EvenHubBridge {
     }
 
     try {
+      // Try Rebuild first (likely hosted mode)
+      // We cast to any because the structure is identical for our purposes, 
+      // or we can construct a RebuildPageContainer if we imported it.
+      // properties matches.
+      const rebuildSuccess = await this.bridge.rebuildPageContainer(container as any);
+      if (rebuildSuccess) return true;
+
+      console.warn('[EvenHubBridge] Rebuild failed, attempting CreateStartUp...');
+
       const result = await this.bridge.createStartUpPageContainer(container);
       const success = result === 0;
       if (!success) {
@@ -55,7 +64,7 @@ export class EvenHubBridge {
       }
       return success;
     } catch (err) {
-      console.error('[EvenHubBridge] createStartUpPageContainer error:', err);
+      console.error('[EvenHubBridge] setupPage error:', err);
       return false;
     }
   }
