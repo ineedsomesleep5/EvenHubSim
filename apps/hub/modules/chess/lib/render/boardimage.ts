@@ -76,7 +76,8 @@ function initBmpBuffer(): Uint8Array {
   view.setUint32(46, BMP_COLORS_USED, true);
   view.setUint32(50, BMP_COLORS_USED, true);
   view.setUint32(54, 0x00000000, true);
-  view.setUint32(58, 0x00ffffff, true);
+  // Index 1: Green (0x00FF00) - Matched to branding renderer and hardware expectation
+  view.setUint32(58, 0x0000ff00, true);
 
   return data;
 }
@@ -163,11 +164,11 @@ export class BoardRenderer {
       const dirty: ImageRawDataUpdate[] = [];
       if (topDirty) {
         encodeBmpPixels(this.cachedTopBmp, this.workPixels.subarray(0, BUF_W * IMAGE_HEIGHT));
-        dirty.push(new ImageRawDataUpdate({ containerID: CONTAINER_ID_IMAGE_TOP, containerName: CONTAINER_NAME_IMAGE_TOP, imageData: this.cachedTopBmp.slice() }));
+        dirty.push(new ImageRawDataUpdate({ containerID: CONTAINER_ID_IMAGE_TOP, containerName: CONTAINER_NAME_IMAGE_TOP, imageData: Array.from(this.cachedTopBmp) }));
       }
       if (bottomDirty) {
         encodeBmpPixels(this.cachedBottomBmp, this.workPixels.subarray(BUF_W * IMAGE_HEIGHT));
-        dirty.push(new ImageRawDataUpdate({ containerID: CONTAINER_ID_IMAGE_BOTTOM, containerName: CONTAINER_NAME_IMAGE_BOTTOM, imageData: this.cachedBottomBmp.slice() }));
+        dirty.push(new ImageRawDataUpdate({ containerID: CONTAINER_ID_IMAGE_BOTTOM, containerName: CONTAINER_NAME_IMAGE_BOTTOM, imageData: Array.from(this.cachedBottomBmp) }));
       }
       return dirty;
     }
@@ -183,8 +184,8 @@ export class BoardRenderer {
     encodeBmpPixels(this.cachedBottomBmp, this.workPixels.subarray(BUF_W * IMAGE_HEIGHT));
 
     return [
-      new ImageRawDataUpdate({ containerID: CONTAINER_ID_IMAGE_TOP, containerName: CONTAINER_NAME_IMAGE_TOP, imageData: this.cachedTopBmp.slice() }),
-      new ImageRawDataUpdate({ containerID: CONTAINER_ID_IMAGE_BOTTOM, containerName: CONTAINER_NAME_IMAGE_BOTTOM, imageData: this.cachedBottomBmp.slice() }),
+      new ImageRawDataUpdate({ containerID: CONTAINER_ID_IMAGE_TOP, containerName: CONTAINER_NAME_IMAGE_TOP, imageData: Array.from(this.cachedTopBmp) }),
+      new ImageRawDataUpdate({ containerID: CONTAINER_ID_IMAGE_BOTTOM, containerName: CONTAINER_NAME_IMAGE_BOTTOM, imageData: Array.from(this.cachedBottomBmp) }),
     ];
   }
 
@@ -365,11 +366,11 @@ export class BoardRenderer {
     const dirty: ImageRawDataUpdate[] = [];
     if (topDirty) {
       encodeBmpPixels(this.cachedTopBmp, this.workPixels.subarray(0, BUF_W * IMAGE_HEIGHT));
-      dirty.push(new ImageRawDataUpdate({ containerID: CONTAINER_ID_IMAGE_TOP, containerName: CONTAINER_NAME_IMAGE_TOP, imageData: this.cachedTopBmp.slice() }));
+      dirty.push(new ImageRawDataUpdate({ containerID: CONTAINER_ID_IMAGE_TOP, containerName: CONTAINER_NAME_IMAGE_TOP, imageData: Array.from(this.cachedTopBmp) }));
     }
     if (bottomDirty) {
       encodeBmpPixels(this.cachedBottomBmp, this.workPixels.subarray(BUF_W * IMAGE_HEIGHT));
-      dirty.push(new ImageRawDataUpdate({ containerID: CONTAINER_ID_IMAGE_BOTTOM, containerName: CONTAINER_NAME_IMAGE_BOTTOM, imageData: this.cachedBottomBmp.slice() }));
+      dirty.push(new ImageRawDataUpdate({ containerID: CONTAINER_ID_IMAGE_BOTTOM, containerName: CONTAINER_NAME_IMAGE_BOTTOM, imageData: Array.from(this.cachedBottomBmp) }));
     }
     return dirty;
   }
@@ -469,8 +470,8 @@ export class BoardRenderer {
     encodeBmpPixels(this.cachedBottomBmp, pixels.subarray(BUF_W * IMAGE_HEIGHT));
 
     return [
-      new ImageRawDataUpdate({ containerID: CONTAINER_ID_IMAGE_TOP, containerName: CONTAINER_NAME_IMAGE_TOP, imageData: this.cachedTopBmp.slice() }),
-      new ImageRawDataUpdate({ containerID: CONTAINER_ID_IMAGE_BOTTOM, containerName: CONTAINER_NAME_IMAGE_BOTTOM, imageData: this.cachedBottomBmp.slice() }),
+      new ImageRawDataUpdate({ containerID: CONTAINER_ID_IMAGE_TOP, containerName: CONTAINER_NAME_IMAGE_TOP, imageData: Array.from(this.cachedTopBmp) }),
+      new ImageRawDataUpdate({ containerID: CONTAINER_ID_IMAGE_BOTTOM, containerName: CONTAINER_NAME_IMAGE_BOTTOM, imageData: Array.from(this.cachedBottomBmp) }),
     ];
   }
 }
@@ -571,7 +572,7 @@ function highlightCell(
   if (style === 'selected') {
     // Diagonal striped border (3px wide)
     const borderWidth = 3;
-    
+
     for (let t = 0; t < borderWidth; t++) {
       for (let dx = 0; dx < CELL; dx++) {
         const stripe = (dx + t) % 4 < 2 ? 1 : 0;
@@ -747,7 +748,7 @@ function drawPiece(
               const nr = row + dr;
               const nc = col + dc;
               if (nr >= 0 && nr < PIECE_SIZE && nc >= 0 && nc < PIECE_SIZE &&
-                  silhouette[nr] !== undefined && (silhouette[nr]! & (1 << (PIECE_SIZE - 1 - nc)))) {
+                silhouette[nr] !== undefined && (silhouette[nr]! & (1 << (PIECE_SIZE - 1 - nc)))) {
                 adjacentToSilhouette = true;
               }
             }
@@ -782,7 +783,7 @@ function drawPiece(
               const nr = row + dr;
               const nc = col + dc;
               if (nr >= 0 && nr < PIECE_SIZE && nc >= 0 && nc < PIECE_SIZE &&
-                  silhouette[nr] !== undefined && (silhouette[nr]! & (1 << (PIECE_SIZE - 1 - nc)))) {
+                silhouette[nr] !== undefined && (silhouette[nr]! & (1 << (PIECE_SIZE - 1 - nc)))) {
                 adjacentToSilhouette = true;
               }
             }
