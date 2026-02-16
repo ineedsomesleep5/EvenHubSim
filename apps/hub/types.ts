@@ -17,6 +17,7 @@ export interface HubRenderer {
     renderList(title: string, items: string[], selectedIndex: number): Promise<void>
     renderImages?(updates: ImageRawDataUpdate[]): Promise<void>
     setupChessLayout?(): Promise<void>
+    getBridge?(): any // Typed as any to avoid importing SDK types here if not needed, or better explicit type
 }
 
 export type SubModuleFactory = (renderer: HubRenderer, setStatus: SetStatus) => SubModule

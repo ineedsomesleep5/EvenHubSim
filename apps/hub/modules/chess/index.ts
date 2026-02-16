@@ -13,8 +13,9 @@ export const createChessModule: SubModuleFactory = (renderer, setStatus) => {
             setStatus('Chess: Initializing full app...')
             try {
                 // Initialize the full EvenChess app logic
-                // This handles its own rendering and input mapping
-                app = await createChessApp()
+                // Pass existing bridge if available to avoid re-init issues
+                const existingBridge = renderer.getBridge ? renderer.getBridge() : undefined
+                app = await createChessApp(existingBridge)
                 setStatus('Chess: Ready')
             } catch (err) {
                 console.error('Failed to init Chess App:', err)

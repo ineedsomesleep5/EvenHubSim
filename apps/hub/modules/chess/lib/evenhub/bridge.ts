@@ -21,7 +21,17 @@ export class EvenHubBridge {
   private isSendingImage = false;
   private unsubscribeEvents: (() => void) | null = null;
 
+  constructor(bridge?: EvenAppBridgeType) {
+    if (bridge) {
+      this.bridge = bridge;
+    }
+  }
+
   async init(): Promise<void> {
+    if (this.bridge) {
+      console.log('[EvenHubBridge] Using existing bridge.');
+      return;
+    }
     try {
       this.bridge = await waitForEvenAppBridge();
       console.log('[EvenHubBridge] Bridge ready.');

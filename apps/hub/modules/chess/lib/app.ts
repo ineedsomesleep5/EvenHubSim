@@ -66,7 +66,7 @@ export interface ChessApp {
   shutdown: () => Promise<void>;
 }
 
-export async function createChessApp(): Promise<ChessApp> {
+export async function createChessApp(externalBridge?: any): Promise<ChessApp> {
   const chess = new ChessService();
 
   const persistedDifficulty = loadDifficulty();
@@ -96,7 +96,7 @@ export async function createChessApp(): Promise<ChessApp> {
   }
 
   const store = createStore(initialState);
-  const hub = new EvenHubBridge();
+  const hub = new EvenHubBridge(externalBridge);
   const boardRenderer = new BoardRenderer();
   const initialProfile = PROFILE_BY_DIFFICULTY[initialState.difficulty] ?? PROFILE_BY_DIFFICULTY['casual'];
   const turnLoop = new TurnLoop(chess, store, initialProfile);

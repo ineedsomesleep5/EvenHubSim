@@ -373,7 +373,8 @@ function createRenderer(): HubRenderer {
         async renderText(t, b) { await renderText(t, b) },
         async renderList(t, i, idx) { await renderList(t, i, idx) },
         async renderImages(updates) { await renderImages(updates) },
-        async setupChessLayout() { await setupChessLayout() }
+        async setupChessLayout() { await setupChessLayout() },
+        getBridge() { return bridge }
     }
 }
 
