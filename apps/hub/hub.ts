@@ -6,7 +6,7 @@
  * instead of the raw even_hub_sdk, which has tricky initialization
  * requirements (createStartUpPageContainer only once, etc.).
  */
-import { EvenBetterSdk } from '@jappyjan/even-better-sdk'
+import { EvenBetterSdk, EvenBetterPage, EvenBetterListElement, EvenBetterTextElement } from '@jappyjan/even-better-sdk'
 import type { EvenHubEvent } from '@evenrealities/even_hub_sdk'
 import { OsEventTypeList } from '@evenrealities/even_hub_sdk'
 import type { AppActions, SetStatus } from '../_shared/app-types'
@@ -30,29 +30,88 @@ let modules: SubModule[] = []
 let activeModule: SubModule | null = null
 let hubSetStatus: SetStatus = () => { }
 
-// ── Rendering via EvenBetterSdk ────────────────────────────
+// ── Cached Rendering Elements ──────────────────────────────
+// We must cache elements because creating new ones typically appends to the page
+// instead of replacing, causing the display to stack or fail to update.
+
+interface ListPageCache {
+    page: EvenBetterPage
+    title: EvenBetterTextElement
+    list: EvenBetterListElement
+}
+
+interface TextPageCache {
+    page: EvenBetterPage
+    title: EvenBetterTextElement
+    body: EvenBetterTextElement
+}
+
+let listCache: ListPageCache | null = null
+let textCache: TextPageCache | null = null
+
+function resetCache() {
+    listCache = null
+    textCache = null
+}
+
+function getListPage(): ListPageCache {
+    if (!sdk) throw new Error('SDK not initialized')
+    if (listCache) return listCache
+
+    const page = sdk.createPage('hub-list')
+
+    const title = page.addTextElement('') as EvenBetterTextElement
+    title.setPosition(p => p.setX(8).setY(0))
+        .setSize(s => s.setWidth(560).setHeight(32))
+
+    // Use slightly different Y for list to ensure clear separation
+    const list = page.addListElement([]) as EvenBetterListElement
+    list.setPosition(p => p.setX(4).setY(36))
+        .setSize(s => s.setWidth(568).setHeight(250))
+
+    list.setIsItemSelectBorderEn(true)
+    list.markAsEventCaptureElement()
+
+    listCache = { page, title, list }
+    return listCache
+}
+
+function getTextPage(): TextPageCache {
+    if (!sdk) throw new Error('SDK not initialized')
+    if (textCache) return textCache
+
+    const page = sdk.createPage('hub-text')
+
+    const title = page.addTextElement('') as EvenBetterTextElement
+    title.setPosition(p => p.setX(8).setY(0))
+        .setSize(s => s.setWidth(560).setHeight(32))
+
+    const body = page.addTextElement('') as EvenBetterTextElement
+    body.setPosition(p => p.setX(8).setY(36))
+        .setSize(s => s.setWidth(560).setHeight(250))
+
+    body.markAsEventCaptureElement()
+
+    textCache = { page, title, body }
+    return textCache
+}
+
+// ── Rendering ──────────────────────────────────────────────
 
 async function renderList(title: string, items: string[], selectedIndex: number): Promise<void> {
     if (!sdk) return
-    const page = sdk.createPage('hub-main')
-
-    // Title text element
-    page.addTextElement(title)
-        .setPosition(p => p.setX(8).setY(0))
-        .setSize(s => s.setWidth(560).setHeight(32))
-
-    // List element
-    const listEl = page.addListElement(items)
-    listEl
-        .setPosition(p => p.setX(4).setY(36))
-        .setSize(s => s.setWidth(568).setHeight(250))
-
-    listEl.setIsItemSelectBorderEn(true)
-    listEl.markAsEventCaptureElement()
-
     try {
+        const { page, title: titleEl, list: listEl } = getListPage()
+
+        // Update content
+        titleEl.setContent(title)
+        listEl.setItems(items)
+
+        // Note: SDK doesn't expose a way to set selection index programmatically
+        // So we just render. The glasses manage current selection.
+
         await page.render()
-        appendEventLog(`[hub] rendered list: ${items.length} items, selected=${selectedIndex}`)
+        appendEventLog(`[hub] rendered list: ${items.length} items`)
     } catch (err) {
         console.error('[hub] render list error', err)
         appendEventLog(`[hub] render error: ${err instanceof Error ? err.message : String(err)}`)
@@ -61,19 +120,13 @@ async function renderList(title: string, items: string[], selectedIndex: number)
 
 async function renderText(title: string, body: string): Promise<void> {
     if (!sdk) return
-    const page = sdk.createPage('hub-main')
-
-    page.addTextElement(title)
-        .setPosition(p => p.setX(8).setY(0))
-        .setSize(s => s.setWidth(560).setHeight(32))
-
-    const bodyEl = page.addTextElement(body)
-    bodyEl
-        .setPosition(p => p.setX(8).setY(36))
-        .setSize(s => s.setWidth(560).setHeight(250))
-    bodyEl.markAsEventCaptureElement()
-
     try {
+        const { page, title: titleEl, body: bodyEl } = getTextPage()
+
+        // Update content
+        titleEl.setContent(title)
+        bodyEl.setContent(body)
+
         await page.render()
         appendEventLog(`[hub] rendered text: ${title}`)
     } catch (err) {
@@ -251,6 +304,7 @@ export function createHubActions(setStatus: SetStatus): AppActions {
     ]
 
     // Eagerly initialize SDK
+    resetCache()
     sdk = new EvenBetterSdk()
 
     // Auto-connect: try immediately
@@ -289,6 +343,7 @@ export function createHubActions(setStatus: SetStatus): AppActions {
             appendEventLog('Hub: manual connect')
 
             try {
+                resetCache()
                 sdk = new EvenBetterSdk()
                 const bridge = await EvenBetterSdk.getRawBridge()
                 if (bridge) {
