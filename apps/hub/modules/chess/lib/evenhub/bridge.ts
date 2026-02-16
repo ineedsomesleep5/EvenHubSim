@@ -49,17 +49,11 @@ export class EvenHubBridge {
     }
 
     try {
-      // 1. Try Rebuild (fastest, preserves validity if compatible)
-      appendEventLog('Chess: Attempting Page Rebuild...');
-      const rebuildSuccess = await this.bridge.rebuildPageContainer(container as any);
-      if (rebuildSuccess) {
-        appendEventLog('Chess: Rebuild Success');
-        return true;
-      }
-      appendEventLog('Chess: Rebuild Failed.');
+      // FORCE CreateStartUpPage (Skip Rebuild to avoid ID collisions/artifacts)
+      // Reference: EvenChess layout (Images) conflicts with Hub layout (List, ID 2)
+      // Rebuild might return true but leave old elements.
+      appendEventLog('Chess: setupPage -> Force Create...');
 
-      // 2. Try Create (standard overwrite)
-      appendEventLog('Chess: Attempting CreateStartUpPage...');
       let result = await this.bridge.createStartUpPageContainer(container);
       if (result === 0) {
         appendEventLog('Chess: Create Success');
@@ -67,7 +61,7 @@ export class EvenHubBridge {
       }
       appendEventLog(`Chess: Create Failed (${result}). Trying Shutdown+Create...`);
 
-      // 3. Force Shutdown and Retry Create (Nuke and Pave)
+      // Force Shutdown and Retry Create (Nuke and Pave)
       // ID 0 is the default page allowed to be shutdown
       try {
         await this.bridge.shutDownPageContainer(0);
