@@ -145,6 +145,18 @@ async function handleMenuEvent(eventType: string, setStatus?: SetStatus): Promis
             activeModule = mod
             currentView = mod.id
             try {
+                // FORCE CLEAN SLATE: Shutdown existing page (Menu) before entering module
+                // This prevents layout conflicts (e.g. List vs Image IDs)
+                if (bridge) {
+                    try {
+                        await bridge.shutDownPageContainer(0) 
+                        // Small delay to ensure shutdown processes
+                        await new Promise(r => setTimeout(r, 100))
+                    } catch (e) {
+                         console.warn('Pre-module shutdown failed', e)
+                    }
+                }
+
                 await mod.enter()
                 appendEventLog(`>>> ${mod.label} entered OK`)
             } catch (err) {
