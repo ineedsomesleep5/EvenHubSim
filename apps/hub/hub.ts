@@ -28,6 +28,7 @@ let currentView: View = 'menu'
 let menuIndex = 0
 let modules: SubModule[] = []
 let activeModule: SubModule | null = null
+let hubSetStatus: SetStatus = () => { }
 
 // ── Rendering via EvenBetterSdk ────────────────────────────
 
@@ -187,13 +188,13 @@ async function handleEvent(event: EvenHubEvent): Promise<void> {
     }
 
     if (currentView === 'menu') {
-        await handleMenuEvent(eventType)
+        await handleMenuEvent(eventType, hubSetStatus)
     } else if (activeModule) {
         await activeModule.handleEvent(eventType)
     }
 }
 
-async function handleMenuEvent(eventType: 'up' | 'down' | 'click' | 'double'): Promise<void> {
+async function handleMenuEvent(eventType: 'up' | 'down' | 'click' | 'double', setStatus?: SetStatus): Promise<void> {
     if (eventType === 'up') {
         menuIndex = Math.max(0, menuIndex - 1)
         await showMenu()
@@ -203,10 +204,25 @@ async function handleMenuEvent(eventType: 'up' | 'down' | 'click' | 'double'): P
     } else if (eventType === 'click') {
         const mod = modules[menuIndex]
         if (mod) {
+            appendEventLog(`>>> ENTERING ${mod.label} (menuIdx=${menuIndex})`)
+            if (setStatus) setStatus(`Entering ${mod.label}...`)
             activeModule = mod
             currentView = mod.id
-            appendEventLog(`Entered: ${mod.label}`)
-            await mod.enter()
+            try {
+                await mod.enter()
+                appendEventLog(`>>> ${mod.label} entered OK`)
+            } catch (err) {
+                const msg = err instanceof Error ? err.message : String(err)
+                appendEventLog(`>>> ${mod.label} FAILED: ${msg}`)
+                console.error(`[hub] module ${mod.label} enter failed:`, err)
+                if (setStatus) setStatus(`Error entering ${mod.label}: ${msg}`)
+                // Fall back to menu
+                activeModule = null
+                currentView = 'menu'
+                await showMenu()
+            }
+        } else {
+            appendEventLog(`>>> No module at index ${menuIndex}`)
         }
     }
 }
@@ -219,6 +235,7 @@ async function showMenu(): Promise<void> {
 // ── Public API ─────────────────────────────────────────────
 
 export function createHubActions(setStatus: SetStatus): AppActions {
+    hubSetStatus = setStatus
     const renderer = createRenderer()
 
     // Create all sub-modules
@@ -291,7 +308,7 @@ export function createHubActions(setStatus: SetStatus): AppActions {
         },
         async action() {
             if (currentView === 'menu') {
-                await handleMenuEvent('click')
+                await handleMenuEvent('click', setStatus)
             } else if (activeModule) {
                 await activeModule.handleEvent('click')
             }
