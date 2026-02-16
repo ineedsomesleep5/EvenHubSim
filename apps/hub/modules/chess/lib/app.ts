@@ -122,17 +122,13 @@ export async function createChessApp(externalBridge?: any): Promise<ChessApp> {
 
     const state = store.getState();
     const containerReady = new Promise<void>((r) => setTimeout(r, CONTAINER_READY_MS));
-    appendEventLog('Chess: rendering board PNG...');
-    const boardPromise = boardRenderer.renderPngAsync(state, chess, 0);
+    appendEventLog('Chess: rendering board BMP...');
+    // Force BMP rendering for glasses compatibility (PNG fails on device)
+    const initialImages = boardRenderer.renderFull(state, chess);
+    appendEventLog(`Chess: BMP render got ${initialImages.length} images`);
 
     await containerReady;
-    let initialImages = await boardPromise;
-    appendEventLog(`Chess: PNG render got ${initialImages.length} images`);
-    if (initialImages.length === 0) {
-      appendEventLog('Chess: PNG empty, falling back to BMP...');
-      initialImages = boardRenderer.renderFull(state, chess);
-      appendEventLog(`Chess: BMP render got ${initialImages.length} images`);
-    }
+
 
     if (initialImages.length > 0) {
       appendEventLog(`Chess: sending ${initialImages.length} board images...`);
@@ -433,12 +429,11 @@ export async function createChessApp(externalBridge?: any): Promise<ChessApp> {
       }
       boardCache.nextKey = boardCacheKey(nextState);
       boardCache.prevKey = boardCacheKey(prevState);
-      const [nextImages, prevImages] = await Promise.all([
-        boardRenderer.renderPngAsync(nextState, chess, 0),
-        boardRenderer.renderPngAsync(prevState, chess, 2),
-      ]);
-      boardCache.nextImages = nextImages.length > 0 ? nextImages : boardRenderer.render(nextState, chess);
-      boardCache.prevImages = prevImages.length > 0 ? prevImages : boardRenderer.render(prevState, chess);
+
+      // Force BMP rendering for cache (PNG fails on device)
+      // Since render() is fast (1-bit Bitmap), we can do it synchronously in the idle callback
+      boardCache.nextImages = boardRenderer.render(nextState, chess);
+      boardCache.prevImages = boardRenderer.render(prevState, chess);
     };
     if (typeof requestIdleCallback !== 'undefined') {
       requestIdleCallback(run, { timeout: 80 });
@@ -573,8 +568,8 @@ export async function createChessApp(externalBridge?: any): Promise<ChessApp> {
                 dirtyImages = useNext ? boardCache.nextImages : boardCache.prevImages;
                 boardRenderer.setStateForCache(state);
               } else {
-                dirtyImages = await boardRenderer.renderPngAsync(state, chess);
-                if (dirtyImages.length === 0) dirtyImages = boardRenderer.render(state, chess);
+                // Force BMP rendering for glasses compatibility
+                dirtyImages = boardRenderer.render(state, chess);
               }
               if (state.phase === 'pieceSelect' || state.phase === 'destSelect' || state.phase === 'promotionSelect') {
                 dirtyImages = orderImagesSelectionFirst(dirtyImages, state);
