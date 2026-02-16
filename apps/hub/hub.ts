@@ -140,9 +140,11 @@ function detectEventType(event: EvenHubEvent): 'up' | 'down' | 'click' | 'double
     // Infer from list selection index change
     if (event.listEvent && typeof event.listEvent.currentSelectItemIndex === 'number') {
         const idx = event.listEvent.currentSelectItemIndex
+        // Only infer scroll if index CHANGED.
+        // DO NOT infer click if index is same (it might be a heartbeat).
         if (idx > menuIndex) return 'down'
         if (idx < menuIndex) return 'up'
-        return 'click'
+        // return 'click' // <--- REMOVED: This was causing false clicks on heartbeats
     }
 
     return null
@@ -157,6 +159,7 @@ async function handleEvent(event: EvenHubEvent): Promise<void> {
         list: event.listEvent ? { et: event.listEvent.eventType, idx: event.listEvent.currentSelectItemIndex, name: event.listEvent.currentSelectItemName } : null,
         text: event.textEvent ? { et: event.textEvent.eventType } : null,
         sys: event.sysEvent ? { et: event.sysEvent.eventType } : null,
+        json: event.jsonData // <--- ADDED: Log the full JSON payload
     })
     appendEventLog(`Raw: ${rawSummary}`)
 
