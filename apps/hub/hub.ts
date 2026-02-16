@@ -34,11 +34,10 @@ let hubSetStatus: SetStatus = () => { }
 
 async function renderList(title: string, items: string[], selectedIndex: number): Promise<void> {
     if (!sdk) return
-    const page = sdk.createPage('hub-page')
+    const page = sdk.createPage('hub-main')
 
     // Title text element
-    const titleEl = page.addTextElement(title)
-    titleEl
+    page.addTextElement(title)
         .setPosition(p => p.setX(8).setY(0))
         .setSize(s => s.setWidth(560).setHeight(32))
 
@@ -47,6 +46,8 @@ async function renderList(title: string, items: string[], selectedIndex: number)
     listEl
         .setPosition(p => p.setX(4).setY(36))
         .setSize(s => s.setWidth(568).setHeight(250))
+
+    listEl.setIsItemSelectBorderEn(true)
     listEl.markAsEventCaptureElement()
 
     try {
@@ -60,10 +61,9 @@ async function renderList(title: string, items: string[], selectedIndex: number)
 
 async function renderText(title: string, body: string): Promise<void> {
     if (!sdk) return
-    const page = sdk.createPage('hub-text')
+    const page = sdk.createPage('hub-main')
 
-    const titleEl = page.addTextElement(title)
-    titleEl
+    page.addTextElement(title)
         .setPosition(p => p.setX(8).setY(0))
         .setSize(s => s.setWidth(560).setHeight(32))
 
