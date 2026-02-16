@@ -99,35 +99,44 @@ function createRenderer(): HubRenderer {
 
 // ── Event handling ─────────────────────────────────────────
 
-function normalizeEventType(event: EvenHubEvent): 'up' | 'down' | 'click' | 'double' | null {
-    // Extract event type from all possible locations
-    const rawType =
-        event.listEvent?.eventType ??
-        event.textEvent?.eventType ??
-        event.sysEvent?.eventType
+function detectEventType(event: EvenHubEvent): 'up' | 'down' | 'click' | 'double' | null {
+    // Gather all possible eventType values
+    const sources: unknown[] = []
 
-    if (rawType === OsEventTypeList.CLICK_EVENT) return 'click'
-    if (rawType === OsEventTypeList.SCROLL_TOP_EVENT) return 'up'
-    if (rawType === OsEventTypeList.SCROLL_BOTTOM_EVENT) return 'down'
-    if (rawType === OsEventTypeList.DOUBLE_CLICK_EVENT) return 'double'
+    if (event.listEvent?.eventType !== undefined) sources.push(event.listEvent.eventType)
+    if (event.textEvent?.eventType !== undefined) sources.push(event.textEvent.eventType)
+    if (event.sysEvent?.eventType !== undefined) sources.push(event.sysEvent.eventType)
 
-    // Try jsonData fallback
-    const raw = event.jsonData as Record<string, unknown> | undefined
-    if (raw) {
-        const et = raw.eventType ?? raw.event_type ?? raw.Event_Type ?? raw.type
-        if (typeof et === 'number') {
-            switch (et) { case 0: return 'click'; case 1: return 'up'; case 2: return 'down'; case 3: return 'double' }
+    // Also check jsonData for any eventType-like fields
+    const raw = (event.jsonData ?? {}) as Record<string, unknown>
+    for (const key of ['eventType', 'event_type', 'Event_Type', 'type']) {
+        if (raw[key] !== undefined) sources.push(raw[key])
+    }
+
+    // Try each source
+    for (const src of sources) {
+        // Number check (enum values: 0=click, 1=scrollUp, 2=scrollDown, 3=doubleClick)
+        const num = typeof src === 'number' ? src : (typeof src === 'string' && /^\d+$/.test(src) ? parseInt(src, 10) : null)
+        if (num !== null) {
+            switch (num) {
+                case 0: return 'click'
+                case 1: return 'up'
+                case 2: return 'down'
+                case 3: return 'double'
+            }
         }
-        if (typeof et === 'string') {
-            const v = et.toUpperCase()
+
+        // String check
+        if (typeof src === 'string') {
+            const v = src.toUpperCase()
             if (v.includes('DOUBLE')) return 'double'
             if (v.includes('CLICK')) return 'click'
-            if (v.includes('SCROLL_TOP') || v.includes('UP')) return 'up'
-            if (v.includes('SCROLL_BOTTOM') || v.includes('DOWN')) return 'down'
+            if (v.includes('SCROLL_TOP') || v === 'UP') return 'up'
+            if (v.includes('SCROLL_BOTTOM') || v === 'DOWN') return 'down'
         }
     }
 
-    // Infer from listEvent index change
+    // Infer from list selection index change
     if (event.listEvent && typeof event.listEvent.currentSelectItemIndex === 'number') {
         const idx = event.listEvent.currentSelectItemIndex
         if (idx > menuIndex) return 'down'
@@ -138,14 +147,33 @@ function normalizeEventType(event: EvenHubEvent): 'up' | 'down' | 'click' | 'dou
     return null
 }
 
+// Track last reported list index from the SDK
+let lastListIndex = 0
+
 async function handleEvent(event: EvenHubEvent): Promise<void> {
-    const eventType = normalizeEventType(event)
+    // Log raw event for debugging
+    const rawSummary = JSON.stringify({
+        list: event.listEvent ? { et: event.listEvent.eventType, idx: event.listEvent.currentSelectItemIndex, name: event.listEvent.currentSelectItemName } : null,
+        text: event.textEvent ? { et: event.textEvent.eventType } : null,
+        sys: event.sysEvent ? { et: event.sysEvent.eventType } : null,
+    })
+    appendEventLog(`Raw: ${rawSummary}`)
+
+    // Sync menuIndex from list selection (the SDK tracks the actual selection)
+    if (currentView === 'menu' && event.listEvent && typeof event.listEvent.currentSelectItemIndex === 'number') {
+        const sdkIdx = event.listEvent.currentSelectItemIndex
+        if (sdkIdx >= 0 && sdkIdx < modules.length) {
+            menuIndex = sdkIdx
+        }
+    }
+
+    const eventType = detectEventType(event)
     if (!eventType) {
-        appendEventLog(`Input: unknown event ${JSON.stringify(event.jsonData ?? {}).slice(0, 80)}`)
+        appendEventLog(`Event: unrecognized`)
         return
     }
 
-    appendEventLog(`Input: ${eventType}`)
+    appendEventLog(`Event: ${eventType} (view=${currentView}, menuIdx=${menuIndex})`)
 
     // Double-click always goes back to menu
     if (eventType === 'double' && currentView !== 'menu') {
