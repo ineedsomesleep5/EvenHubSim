@@ -49,38 +49,25 @@ export class EvenHubBridge {
     }
 
     try {
-      // FORCE CreateStartUpPage (Skip Rebuild to avoid ID collisions/artifacts)
-      // Reference: EvenChess layout (Images) conflicts with Hub layout (List, ID 2)
-      // Rebuild might return true but leave old elements.
-      appendEventLog('Chess: setupPage -> Force Create...');
-
-      let result = await this.bridge.createStartUpPageContainer(container);
-      if (result === 0) {
-        appendEventLog('Chess: Create Success');
-        return true;
+      // Simple approach matching reference EvenChess:
+      // Hub already shut down the previous page, so just create ours.
+      const result = await this.bridge.createStartUpPageContainer(container);
+      const success = result === 0;
+      if (!success) {
+        // Single retry after a brief wait (BLE may be slow)
+        appendEventLog(`Chess: Create failed (${result}), retrying after delay...`);
+        await new Promise(r => setTimeout(r, 200));
+        const retry = await this.bridge.createStartUpPageContainer(container);
+        if (retry === 0) {
+          appendEventLog('Chess: Retry Create Success');
+          return true;
+        }
+        appendEventLog(`Chess: Retry failed (${retry})`);
+        console.error('[EvenHubBridge] createStartUpPageContainer failed:', retry);
+        return false;
       }
-      appendEventLog(`Chess: Create Failed (${result}). Trying Shutdown+Create...`);
-
-      // Force Shutdown and Retry Create (Nuke and Pave)
-      // ID 0 is the default page allowed to be shutdown
-      try {
-        await this.bridge.shutDownPageContainer(0);
-        // Brief delay to allow shutdown to propagate
-        await new Promise(r => setTimeout(r, 100));
-      } catch (shutdownErr) {
-        console.warn('Shutdown failed (maybe no page?):', shutdownErr);
-      }
-
-      result = await this.bridge.createStartUpPageContainer(container);
-      if (result === 0) {
-        appendEventLog('Chess: Shutdown+Create Success');
-        return true;
-      }
-
-      appendEventLog(`Chess: Final Create Failed (${result})`);
-      console.error('[EvenHubBridge] All setup attempts failed:', result);
-      return false;
-
+      appendEventLog('Chess: Page Created');
+      return true;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       appendEventLog(`Chess: setupPage Error: ${msg}`);

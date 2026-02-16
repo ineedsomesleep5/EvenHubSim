@@ -150,8 +150,8 @@ async function handleMenuEvent(eventType: string, setStatus?: SetStatus): Promis
                 if (bridge) {
                     try {
                         await bridge.shutDownPageContainer(0)
-                        // Small delay to ensure shutdown processes
-                        await new Promise(r => setTimeout(r, 100))
+                        // Longer delay for BLE — glasses need time to process shutdown
+                        await new Promise(r => setTimeout(r, 300))
                     } catch (e) {
                         console.warn('Pre-module shutdown failed', e)
                     }
