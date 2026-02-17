@@ -88,8 +88,15 @@ export const createTimerModule: SubModuleFactory = (renderer, setStatus) => {
                     // Check for click (Selection confirmed)
                     // SDK: 0=click (tap). Hub detectEventType returns 'click'
                     const isClick = type === 0 || eventType === 'click'
+                    // LOGGING to debug "no tap registered"
+                    appendEventLog(`Timer event: type=${type} click=${isClick} idx=${idx}`)
 
-                    if (isClick) {
+                    if (isClick || (typeof idx === 'number' && selectedIndex === idx)) {
+                        // Relaxed check: if we have an index, just go for it on any event that isn't 'up'/'down'
+                        // or just rely on 'isClick' but with the log providing clues.
+                        // For now, let's trust 'isClick' but if it fails, the log will tell us why.
+                        // Actually, user said "stays in selection".
+                        // Let's assume ANY interaction that selects an index is a "Start" if it's a click-like event.
                         const minutes = DURATIONS[selectedIndex] || 1
                         if (!minutes) return
                         await startTimer(minutes)

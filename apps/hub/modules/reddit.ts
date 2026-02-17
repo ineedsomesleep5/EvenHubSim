@@ -14,6 +14,10 @@ export const createRedditModule: SubModuleFactory = (renderer, setStatus) => {
         appendEventLog('Reddit: fetching /r/popular')
         try {
             const res = await redditFetch('/r/popular/.json?limit=20')
+            if (!res.ok) {
+                appendEventLog(`Reddit: error status ${res.status}`)
+                throw new Error(`HTTP ${res.status}`)
+            }
             const json = await res.json() as { data: { children: { data: Post }[] } }
             posts = json.data.children.map((c) => c.data)
             selected = 0

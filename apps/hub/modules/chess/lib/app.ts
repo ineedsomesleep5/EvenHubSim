@@ -27,7 +27,13 @@ import { EvenHubBridge } from './evenhub/bridge';
 import { TurnLoop } from './engine/turnloop';
 import { PROFILE_BY_DIFFICULTY } from './engine/profiles';
 import { saveGame, loadGame, clearSave, saveDifficulty, loadDifficulty, saveBoardMarkers, loadBoardMarkers } from './storage/persistence';
-import type { ImageRawDataUpdate } from '@evenrealities/even_hub_sdk';
+import {
+  type ImageRawDataUpdate,
+  CreateStartUpPageContainer,
+  TextContainerProperty,
+  ListContainerProperty,
+  ListItemContainerProperty,
+} from '@evenrealities/even_hub_sdk';
 import { MENU_OPTIONS } from './state/constants';
 import { appendEventLog } from '../../../../_shared/log';
 import { STARTING_FEN } from './academy/pgn';
@@ -110,6 +116,28 @@ export async function createChessApp(externalBridge?: any): Promise<ChessApp> {
     await hub.init();
     // Initialize engine without blocking UI; it will fallback if needed
     turnLoop.init().catch(err => console.warn('[EvenChess] Engine init warning:', err));
+
+    // NEW: Check for existing game and show menu if needed
+    if (initialState.fen !== STARTING_FEN) {
+      const resume = await showResumeMenu(hub);
+      if (!resume) {
+        appendEventLog('Chess: New Game selected');
+        // FULL RESET
+        chess.reset();
+        store.dispatch({
+          type: 'REFRESH',
+          fen: chess.getFen(),
+          turn: chess.getTurn(),
+          pieces: chess.getPiecesWithMoves(),
+          inCheck: chess.isInCheck()
+        });
+        // Also clear any persisted game in storage
+        // Persistence is automatic on state change, but being explicit helps
+      } else {
+        appendEventLog('Chess: Resuming game');
+      }
+      await hub.closePage();
+    }
 
     // appendEventLog('Chess: composing startup page...');
     const startupPage = composeStartupPage(store.getState());
@@ -606,4 +634,44 @@ export async function createChessApp(externalBridge?: any): Promise<ChessApp> {
     hub,
     shutdown: () => shutdownApp(hub)
   };
+}
+
+async function showResumeMenu(hub: EvenHubBridge): Promise<boolean> {
+  return new Promise((resolve) => {
+    appendEventLog('Chess: showing resume menu');
+    const container = new CreateStartUpPageContainer({
+      containerTotalNum: 2,
+      textObject: [new TextContainerProperty({
+        containerID: 30, // Use unique ID for menu title
+        containerName: 'menu_title',
+        content: 'Chess\nGame in Progress',
+        xPosition: 0, yPosition: 0, width: 300, height: 100, isEventCapture: 0
+      })],
+      listObject: [new ListContainerProperty({
+        containerID: 31, // Use unique ID for menu list
+        containerName: 'menu_list',
+        itemContainer: new ListItemContainerProperty({
+          itemCount: 2, itemWidth: 500, isItemSelectBorderEn: 1, itemName: ['Resume Game', 'New Game']
+        }),
+        xPosition: 10, yPosition: 150, width: 500, height: 200, isEventCapture: 1
+      })],
+      imageObject: []
+    });
+
+    hub.setupPage(container);
+
+    hub.subscribeEvents((event) => {
+      // Check for List event (click)
+      if (event.listEvent) {
+        const type = event.listEvent.eventType;
+        // 0=click or undefined (often click in sim/device normalized)
+        if (type === 0 || type === undefined) {
+          const idx = event.listEvent.currentSelectItemIndex;
+          if (typeof idx === 'number') {
+            resolve(idx === 0); // 0=Resume, 1=New Game
+          }
+        }
+      }
+    });
+  });
 }

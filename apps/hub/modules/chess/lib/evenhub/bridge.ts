@@ -168,4 +168,15 @@ export class EvenHubBridge {
       }
     }
   }
+  async closePage(): Promise<void> {
+    if (this.bridge) {
+      try {
+        await this.bridge.shutDownPageContainer(0)
+        // Small delay for BLE processing
+        await new Promise((r) => setTimeout(r, 200))
+      } catch (err) {
+        console.warn('[EvenHubBridge] closePage error:', err)
+      }
+    }
+  }
 }
