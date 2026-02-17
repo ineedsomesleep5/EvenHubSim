@@ -223,9 +223,15 @@ function tryDecodeRaw1Bit(bytes: Uint8Array): string | null {
 
 // ── SDK Method Handlers ────────────────────────────────────
 function handleCreateStartUpPage(data: PagePayload): number {
-    clearScreen()
-    buildPage(data)
-    return 0 // StartUpPageCreateResult.success
+    try {
+        clearScreen()
+        buildPage(data)
+        return 0 // StartUpPageCreateResult.success
+    } catch (err) {
+        console.error('[GlassesMock] Build failed:', err)
+        if ((window as any).logToSim) (window as any).logToSim('[Sim] Build failed: ' + String(err))
+        return 1 // StartUpPageCreateResult.invalid
+    }
 }
 
 function handleRebuildPage(data: PagePayload): boolean {
@@ -387,6 +393,10 @@ function handleSdkMessage(jsonStr: string): any {
     }
 
     const data = msg.data ?? {}
+
+    if ((window as any).logToSim) {
+        // (window as any).logToSim(`[Sim] Msg: ${msg.method}`)
+    }
 
     switch (msg.method) {
         case 'createStartUpPageContainer':

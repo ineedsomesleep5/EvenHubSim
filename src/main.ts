@@ -11,6 +11,9 @@ import './styles.css'
 import type { AppActions } from '../apps/_shared/app-types'
 import { appendEventLog } from '../apps/_shared/log'
 
+    // Expose logger for Mock
+    ; (window as any).logToSim = appendEventLog;
+
 // ── DOM Elements ────────────────────────────────────────────
 const $ = <T extends HTMLElement>(id: string): T =>
     document.getElementById(id) as T
