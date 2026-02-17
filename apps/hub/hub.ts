@@ -369,6 +369,7 @@ async function renderText(title: string, body: string) {
 }
 
 async function showMenu() {
+    appendEventLog(`Show Menu: ${modules.length} modules, index=${menuIndex}`)
     const items = modules.map(m => m.label)
     await renderList('── Even Hub ──', items, menuIndex)
 }

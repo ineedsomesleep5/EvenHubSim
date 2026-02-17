@@ -73,47 +73,51 @@ export const createTimerModule: SubModuleFactory = (renderer, setStatus) => {
             stop()
         },
         async handleEvent(eventType, event) {
-            if (eventType === 'double') return
+            // appendEventLog(`Timer Event: ${eventType} mode=${mode}`);
 
             if (mode === 'setup') {
-                // In setup mode, we rely on the List events
+                // Determine direction/action
+                let dir: 'up' | 'down' | 'click' | null = null;
+
                 if (event && event.listEvent) {
-                    const idx = event.listEvent.currentSelectItemIndex
-                    const type = event.listEvent.eventType // 0 = click, 1 = up, 2 = down
+                    const type = event.listEvent.eventType;
+                    const idx = event.listEvent.currentSelectItemIndex;
 
-                    if (typeof idx === 'number') {
-                        selectedIndex = idx
-                    }
+                    // Force sync tracking index if provided
+                    if (typeof idx === 'number') selectedIndex = idx;
 
-                    // Check for click (Selection confirmed)
-                    // SDK: 0=click (tap). Hub detectEventType returns 'click'
-                    const isClick = type === 0 || eventType === 'click'
+                    if (type === 0) dir = 'click';
+                    else if (type === 1) dir = 'up';
+                    else if (type === 2) dir = 'down';
+                }
 
-                    if (isClick) {
-                        const minutes = DURATIONS[selectedIndex] || 1
-                        await startTimer(minutes)
-                        return
-                    }
+                // Fallback / standard events
+                const type = eventType as string;
+                if (type === 'click') dir = 'click';
+                if (type === 'up') dir = 'up';
+                if (type === 'down') dir = 'down';
+                if (type === 'select') dir = 'click';
 
-                    // Update list selection if needed (rendering handles it, but we track index)
-                    if (eventType === 'up' || eventType === 'down') {
-                        if (typeof idx === 'number') {
-                            // Re-render to start fresh? No, Hub lists are native.
-                            // But we might want to log it
-                        }
-                    }
+                if (dir === 'up') {
+                    selectedIndex = Math.max(0, selectedIndex - 1);
+                    await showSetup();
+                } else if (dir === 'down') {
+                    selectedIndex = Math.min(DURATIONS.length - 1, selectedIndex + 1);
+                    await showSetup();
+                } else if (dir === 'click') {
+                    const minutes = DURATIONS[selectedIndex] || 1;
+                    await startTimer(minutes);
                 }
             } else if (mode === 'running') {
-                if (eventType === 'click') {
-                    // Click while running = Pause/Resume? Or Stop?
-                    // User asked to "set timer".
-                    // Let's make click = Stop/Reset to setup
-                    stop()
-                    await showSetup()
+                const type = eventType as string;
+                if (type === 'click' || type === 'back') {
+                    stop();
+                    await showSetup();
                 }
             } else if (mode === 'finished') {
-                if (eventType === 'click') {
-                    await showSetup()
+                const type = eventType as string;
+                if (type === 'click' || type === 'back') {
+                    await showSetup();
                 }
             }
         },

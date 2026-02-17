@@ -59,6 +59,27 @@ interface SdkMessage {
 const containers = new Map<number, HTMLDivElement>()
 let screenEl: HTMLDivElement | null = null
 
+function triggerEvent(event: any) {
+    // Try standard name
+    let fn = (window as any).onEvenHubEvent
+    // Try discovered name
+    if (!fn) fn = (window as any)._listenEvenAppMessage
+
+    if (typeof fn === 'function') {
+        // Reverse-engineered envelope from SDK source
+        const envelope = {
+            type: 'listen_even_app_data',
+            method: 'evenHubEvent',
+            data: event
+        }
+        const json = JSON.stringify(envelope)
+        console.log('[GlassesMock] Triggering event (wrapped):', json)
+        fn(json)
+    } else {
+        console.warn('[GlassesMock] Event handler not found (checked onEvenHubEvent, _listenEvenAppMessage)')
+    }
+}
+
 // G2 display dimensions
 const SCREEN_W = 576
 const SCREEN_H = 200
@@ -223,11 +244,28 @@ function buildPage(data: PagePayload): void {
             const items = def.itemContainer?.itemName ?? []
             const ul = document.createElement('ul')
             ul.className = 'glasses-list'
-            for (const item of items) {
+            items.forEach((item, index) => {
                 const li = document.createElement('li')
                 li.textContent = item
+                li.style.cursor = 'pointer' // Make clickable
+
+                li.addEventListener('click', (e) => {
+                    e.stopPropagation()
+                    console.log('[GlassesMock] List item clicked:', item, index)
+                    // Simulate List Event (Select)
+                    // Event structure mimics SDK event
+                    const envelope = {
+                        type: 0, // listEvent
+                        jsonData: {
+                            eventType: 0, // click
+                            currentSelectItemIndex: index
+                        }
+                    };
+                    triggerEvent(envelope)
+                })
+
                 ul.appendChild(li)
-            }
+            })
             el.appendChild(ul)
             screen.appendChild(el)
             containers.set(def.containerID ?? 0, el)
@@ -260,7 +298,7 @@ function buildPage(data: PagePayload): void {
         }
     }
 
-    console.log('[GlassesMock] Page built with', containers.size, 'containers')
+    console.log('[GlassesMock] Page built with', containers.size, 'containers:', Array.from(containers.keys()))
 }
 
 function handleUpdateImageRawData(data: ImageUpdatePayload): string {

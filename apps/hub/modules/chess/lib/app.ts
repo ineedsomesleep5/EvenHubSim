@@ -70,10 +70,13 @@ let timerInterval: ReturnType<typeof setInterval> | null = null;
 
 export interface ChessApp {
   hub: EvenHubBridge;
+  preload: () => Promise<void>;
+  enter: () => Promise<void>;
+  leave: () => Promise<void>;
   shutdown: () => Promise<void>;
 }
 
-export async function createChessApp(externalBridge?: any): Promise<ChessApp> {
+export function createChessApp(externalBridge?: any): ChessApp {
   const chess = new ChessService();
 
   const persistedDifficulty = loadDifficulty();
@@ -108,21 +111,29 @@ export async function createChessApp(externalBridge?: any): Promise<ChessApp> {
   const initialProfile = PROFILE_BY_DIFFICULTY[initialState.difficulty] ?? PROFILE_BY_DIFFICULTY['casual'];
   const turnLoop = new TurnLoop(chess, store, initialProfile);
 
-  // Delay (ms) after createStartUpPage before first image update; overlap with board render.
-  const CONTAINER_READY_MS = 50;
+  // Initial subscription removed from here. We subscribe in enter().
 
-  try {
-    // appendEventLog('Chess: init bridge...');
-    await hub.init();
-    // Initialize engine without blocking UI; it will fallback if needed
-    turnLoop.init().catch(err => console.warn('[EvenChess] Engine init warning:', err));
+  let isRenderingEnabled = false;
 
-    // NEW: Check for existing game and show menu if needed
-    if (initialState.fen !== STARTING_FEN) {
+  const preload = async () => {
+    try {
+      await hub.init();
+      turnLoop.init().catch(err => console.warn('[EvenChess] Engine init warning:', err));
+    } catch (err) {
+      console.error('[EvenChess] Preload failed:', err);
+    }
+  };
+
+  const enter = async () => {
+    isRenderingEnabled = true;
+
+    // Check for resume menu
+    // We must re-check state as it might have changed if multiple enters occurred (unlikely but safe)
+    const currentFen = store.getState().fen;
+    if (currentFen !== STARTING_FEN) {
       const resume = await showResumeMenu(hub);
       if (!resume) {
         appendEventLog('Chess: New Game selected');
-        // FULL RESET
         chess.reset();
         store.dispatch({
           type: 'REFRESH',
@@ -131,60 +142,53 @@ export async function createChessApp(externalBridge?: any): Promise<ChessApp> {
           pieces: chess.getPiecesWithMoves(),
           inCheck: chess.isInCheck()
         });
-        // Also clear any persisted game in storage
-        // Persistence is automatic on state change, but being explicit helps
       } else {
         appendEventLog('Chess: Resuming game');
       }
-      await hub.closePage();
     }
 
-    // appendEventLog('Chess: composing startup page...');
+    // Compose page
     const startupPage = composeStartupPage(store.getState());
     const pageOk = await hub.setupPage(startupPage);
-    // appendEventLog(`Chess: setupPage result=${pageOk}`);
     if (!pageOk) {
       appendEventLog('Chess: FAILED to create page — aborting image send');
       throw new Error('setupPage failed');
     }
 
-    const state = store.getState();
-    const containerReady = new Promise<void>((r) => setTimeout(r, CONTAINER_READY_MS));
-    // appendEventLog('Chess: rendering board BMP...');
-    // Force BMP rendering for glasses compatibility (PNG fails on device)
-    const initialImages = boardRenderer.renderFull(state, chess);
-    // appendEventLog(`Chess: BMP render got ${initialImages.length} images`);
+    // Subscribe to store updates
+    if (storeUnsubscribe) storeUnsubscribe();
+    storeUnsubscribe = store.subscribe(() => {
+      if (pendingUpdateTimeout) clearTimeout(pendingUpdateTimeout);
+      pendingUpdateTimeout = setTimeout(() => {
+        void flushDisplayUpdate();
+      }, 0);
+    });
 
-    await containerReady;
+    // Force initial update
+    void flushDisplayUpdate();
 
+    // Restore event listener
+    hub.subscribeEvents(handleHubEvent);
+  };
 
-    if (initialImages.length > 0) {
-      // appendEventLog(`Chess: sending ${initialImages.length} board images...`);
-      for (const img of initialImages) {
-        // appendEventLog(`Chess: img id=${img.containerID} name=${img.containerName} bytes=${img.imageData ? (img.imageData as any).length ?? '?' : 0}`);
-      }
-      await sendImages(hub, initialImages);
-      // appendEventLog('Chess: board images sent OK');
-    } else {
-      appendEventLog('Chess: WARNING — no images to send!');
+  const leave = async () => {
+    isRenderingEnabled = false;
+    if (storeUnsubscribe) {
+      storeUnsubscribe();
+      storeUnsubscribe = null;
     }
+    // We don't shutdown hub here, just stop listening/rendering
+    // But we might want to clear the screen?
+    // The calling module (hub) handles switching views.
+  };
 
-    // appendEventLog('Chess: sending branding image...');
-    await hub.updateBoardImage(renderBrandingImage());
-    // appendEventLog('Chess: init complete');
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    appendEventLog(`Chess: INIT FAILED: ${msg}`);
-    console.error('[EvenChess] Initialization failed:', err);
-  }
-
-  // Modified event subscription: just set up the mapper, hub handles dispatch
-  hub.subscribeEvents((event) => {
+  const handleHubEvent = (event: any) => {
     const action = mapEvenHubEvent(event, store.getState());
     if (action) {
       store.dispatch(action);
     }
-  });
+  };
+
 
   // Debounced: rapid state changes coalesce into single SDK update. 0ms = next tick (snappier).
   const DISPLAY_DEBOUNCE_MS = 0;
@@ -471,6 +475,8 @@ export async function createChessApp(externalBridge?: any): Promise<ChessApp> {
   }
 
   async function flushDisplayUpdate(): Promise<void> {
+    if (!isRenderingEnabled) return; // Only render if enabled
+
     // Mutex: BLE sends can be slow on glasses, prevent concurrent flushes
     if (flushInProgress) {
       pendingFlushState = latestState;
@@ -632,6 +638,9 @@ export async function createChessApp(externalBridge?: any): Promise<ChessApp> {
 
   return {
     hub,
+    preload,
+    enter,
+    leave,
     shutdown: () => shutdownApp(hub)
   };
 }
@@ -683,3 +692,4 @@ async function showResumeMenu(hub: EvenHubBridge): Promise<boolean> {
     });
   });
 }
+

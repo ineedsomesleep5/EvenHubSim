@@ -5,6 +5,7 @@
 
 import { Chess } from 'chess.js';
 import type { EngineProfile } from '../state/contracts';
+import StockfishWorker from './stockfish-worker.js?worker';
 
 const MULTIPV_COUNT = 5;
 
@@ -19,12 +20,11 @@ export class StockfishBridge {
   private fallbackChess: Chess | null = null;
 
   async init(): Promise<void> {
-    const workerUrl = '/stockfish/stockfish.wasm.js';
     try {
       if (typeof WebAssembly !== 'object') {
         throw new Error('WebAssembly not supported');
       }
-      this.worker = new Worker(workerUrl, { type: 'classic' });
+      this.worker = new StockfishWorker();
       await this.waitForReady();
       this.ready = true;
       console.log('[StockfishBridge] Engine ready (WASM).');
