@@ -660,16 +660,24 @@ async function showResumeMenu(hub: EvenHubBridge): Promise<boolean> {
 
     hub.setupPage(container);
 
+    let selectedIndex = 0;
+
     hub.subscribeEvents((event) => {
-      // Check for List event (click)
       if (event.listEvent) {
         const type = event.listEvent.eventType;
+        const idx = event.listEvent.currentSelectItemIndex;
+
+        // Update tracking index if present (usually strictly for nav events)
+        if (typeof idx === 'number') {
+          selectedIndex = idx;
+        }
+
         // 0=click or undefined (often click in sim/device normalized)
         if (type === 0 || type === undefined) {
-          const idx = event.listEvent.currentSelectItemIndex;
-          if (typeof idx === 'number') {
-            resolve(idx === 0); // 0=Resume, 1=New Game
-          }
+          // If click event has index, use it. If not, use tracked index.
+          const finalIdx = (typeof idx === 'number') ? idx : selectedIndex;
+          appendEventLog(`Chess Menu: Selected idx=${finalIdx}`);
+          resolve(finalIdx === 0); // 0=Resume, 1=New Game
         }
       }
     });

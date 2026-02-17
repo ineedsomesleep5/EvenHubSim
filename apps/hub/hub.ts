@@ -15,6 +15,7 @@ import {
     ListContainerProperty,
     ListItemContainerProperty,
     TextContainerProperty,
+    TextContainerUpgrade,
 } from '@evenrealities/even_hub_sdk'
 import type { AppActions, SetStatus } from '../_shared/app-types'
 import { appendEventLog } from '../_shared/log'
@@ -179,6 +180,7 @@ const ID_BODY_TEXT = 3
 
 async function renderList(title: string, items: string[], selectedIndex: number) {
     if (!bridge) return
+    isTextViewActive = false // Reset text view state
     appendEventLog(`Rendering List: ${title}`)
 
     // Construct payload
@@ -255,9 +257,32 @@ async function renderList(title: string, items: string[], selectedIndex: number)
     }
 }
 
+let lastTextTitle = ''
+let lastTextBody = ''
+let isTextViewActive = false
+
 async function renderText(title: string, body: string) {
     if (!bridge) return
+
+    // Optimization: If only body changed and we are in text view, update text directly
+    if (isTextViewActive && lastTextTitle === title && lastTextBody !== body) {
+        lastTextBody = body
+        // ID_BODY_TEXT = 3
+        try {
+            await bridge.textContainerUpgrade(new TextContainerUpgrade({
+                containerID: ID_BODY_TEXT,
+                containerName: 'text_body',
+                content: body
+            }))
+            return
+        } catch (err) {
+            console.warn('Fast text update failed, falling back to rebuild', err)
+        }
+    }
+
     appendEventLog(`Rendering Text: ${title}`)
+    lastTextTitle = title
+    lastTextBody = body
 
     const container = new RebuildPageContainer({
         textObject: [
@@ -293,7 +318,10 @@ async function renderText(title: string, body: string) {
         if (!isFirstRender) {
             try {
                 success = await bridge.rebuildPageContainer(container)
-                if (success) appendEventLog('Rebuild Text success')
+                if (success) {
+                    appendEventLog('Rebuild Text success')
+                    isTextViewActive = true
+                }
             } catch (err) {
                 console.warn('Rebuild failed, falling back to create', err)
             }
@@ -316,12 +344,15 @@ async function renderText(title: string, body: string) {
 
             if (res !== 0) throw new Error(`createStartUp res=${res}`)
             isFirstRender = false
+            isTextViewActive = true
             appendEventLog('Page Created (Text) success')
         }
+        // Only ignore events on FULL rebuild/create, not partial updates
         ignoreEventsUntil = Date.now() + 500
     } catch (err) {
         console.error('Render text failed:', err)
         appendEventLog(`Render text failed: ${err}`)
+        isTextViewActive = false
     }
 }
 
@@ -344,6 +375,7 @@ const ID_CHESS_IMG_BOT = 3
 
 async function renderImages(updates: ImageRawDataUpdate[]) {
     if (!bridge) return
+    isTextViewActive = false
     for (const update of updates) {
         try {
             await bridge.updateImageRawData(update)
