@@ -108,6 +108,16 @@ async function handleEvent(event: EvenHubEvent): Promise<void> {
     }
 
     const eventType = detectEventType(event)
+
+    // PRIORITY: If a module is active, forward the event!
+    // The module might understand events that the Hub doesn't (e.g. raw clicks with index)
+    if (activeModule) {
+        // Log what we are sending
+        appendEventLog(`Forwarding to ${activeModule.label}: ${eventType ?? 'raw'} (json=${JSON.stringify(event.jsonData)})`)
+        await activeModule.handleEvent(eventType ?? 'click', event)
+        return
+    }
+
     if (!eventType) {
         appendEventLog(`Event: recognized (ignored/null)`)
         return
@@ -116,17 +126,41 @@ async function handleEvent(event: EvenHubEvent): Promise<void> {
     appendEventLog(`Event: ${eventType} (view=${currentView})`)
 
     if (eventType === 'double' && currentView !== 'menu') {
-        if (activeModule) activeModule.leave()
-        activeModule = null
-        currentView = 'menu'
-        menuIndex = 0
-        appendEventLog('Back to menu')
-        await showMenu()
+        // Double tap on Hub overrides module (Back to Menu)
+        // BUT strict forwarding above might prevent this if module swallows it?
+        // Actually, let's allow "Double" to always bubble up if we want a global back button.
+        // But for now, let's assume the module handles "double" if it wants to exit, 
+        // OR we should check for 'double' specifically before forwarding?
+        // Let's stick to the requested fix: Forward everything. 
+        // We can implement "Double Tap = Exit" INSIDE the module's handleEvent if needed, 
+        // or the module can return "not handled".
+        // For now, `activeModule.handleEvent` is void.
+        // Let's keep the GLOBAL double-tap check *before* forwarding if it is clearly a double tap.
+    }
+
+    // ... wait, if I forward everything, I disable the global back button?
+    // Let's check for 'double' first.
+    if (eventType === 'double') {
+        if (activeModule) {
+            activeModule.leave()
+            activeModule = null
+            currentView = 'menu'
+            menuIndex = 0
+            appendEventLog('Back to menu')
+            await showMenu()
+            return
+        }
+    }
+
+    // Now forward
+    if (activeModule) {
+        await activeModule.handleEvent(eventType ?? 'click', event)
         return
-    } else if (currentView === 'menu') {
+    }
+
+    // Menu logic
+    if (currentView === 'menu' && eventType) {
         await handleMenuEvent(eventType, hubSetStatus)
-    } else if (activeModule) {
-        await activeModule.handleEvent(eventType, event)
     }
 }
 
@@ -157,6 +191,7 @@ async function handleMenuEvent(eventType: string, setStatus?: SetStatus): Promis
                     }
                 }
 
+                isFirstRender = true; // FORCE CREATE on new module entry
                 await mod.enter()
                 appendEventLog(`>>> ${mod.label} entered OK`)
             } catch (err) {
@@ -165,6 +200,7 @@ async function handleMenuEvent(eventType: string, setStatus?: SetStatus): Promis
                 // Fall back
                 activeModule = null
                 currentView = 'menu'
+                isFirstRender = true;
                 await showMenu()
             }
         }

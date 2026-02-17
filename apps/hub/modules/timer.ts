@@ -88,37 +88,18 @@ export const createTimerModule: SubModuleFactory = (renderer, setStatus) => {
                     // Check for click (Selection confirmed)
                     // SDK: 0=click (tap). Hub detectEventType returns 'click'
                     const isClick = type === 0 || eventType === 'click'
-                    // LOGGING to debug "no tap registered"
-                    appendEventLog(`Timer event: type=${type} click=${isClick} idx=${idx}`)
 
-                    if (isClick || (typeof idx === 'number' && selectedIndex === idx)) {
-                        // Relaxed check: if we have an index, just go for it on any event that isn't 'up'/'down'
-                        // or just rely on 'isClick' but with the log providing clues.
-                        // For now, let's trust 'isClick' but if it fails, the log will tell us why.
-                        // Actually, user said "stays in selection".
-                        // Let's assume ANY interaction that selects an index is a "Start" if it's a click-like event.
+                    if (isClick) {
                         const minutes = DURATIONS[selectedIndex] || 1
-                        if (!minutes) return
                         await startTimer(minutes)
                         return
                     }
 
                     // Update list selection if needed (rendering handles it, but we track index)
-                    // If user scrolls, 'idx' changes. We don't need to re-render list unless we want to force it
-                    // But hub.ts re-renders list on menu, maybe we should too?
-                    // Actually, G2 list is stateful on device?
-                    // No, usually we need to update the display if we want to show selection change?
-                    // The 'renderList' sends a static list with a selected index.
-                    // If the user scrolls on the device, the device updates the highlight locally? 
-                    // OR does it send an event and expect us to update?
-                    // Usually it expects us to update.
-                    // Let's re-render list on selection change (up/down)
                     if (eventType === 'up' || eventType === 'down') {
-                        // eventType from hub is derived from main menu index, which is WRONG here.
-                        // We must trust the `idx` from the event if valid.
-                        if (typeof idx === 'number' && idx !== selectedIndex) {
-                            selectedIndex = idx
-                            await renderer.renderList('Select Duration', DURATION_LABELS, selectedIndex)
+                        if (typeof idx === 'number') {
+                            // Re-render to start fresh? No, Hub lists are native.
+                            // But we might want to log it
                         }
                     }
                 }
