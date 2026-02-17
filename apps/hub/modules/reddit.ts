@@ -1,6 +1,6 @@
 import type { SubModuleFactory } from '../types'
 import { appendEventLog } from '../../_shared/log'
-import { proxyFetch } from '../../_shared/proxy'
+import { redditFetch } from '../../_shared/proxy'
 
 type Post = { title: string; score: number; subreddit: string; selftext: string; num_comments: number }
 
@@ -13,7 +13,7 @@ export const createRedditModule: SubModuleFactory = (renderer, setStatus) => {
         setStatus('Reddit: fetching posts...')
         appendEventLog('Reddit: fetching /r/popular')
         try {
-            const res = await proxyFetch('https://old.reddit.com/r/popular/.json?limit=20')
+            const res = await redditFetch('/r/popular/.json?limit=20')
             const json = await res.json() as { data: { children: { data: Post }[] } }
             posts = json.data.children.map((c) => c.data)
             selected = 0

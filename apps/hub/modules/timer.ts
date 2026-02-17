@@ -86,9 +86,12 @@ export const createTimerModule: SubModuleFactory = (renderer, setStatus) => {
                     }
 
                     // Check for click (Selection confirmed)
-                    // SDK: 0=click (tap). Also detectEventType in hub.ts might return 'click'
-                    if (type === 0 || eventType === 'click') {
+                    // SDK: 0=click (tap). Hub detectEventType returns 'click'
+                    const isClick = type === 0 || eventType === 'click'
+
+                    if (isClick) {
                         const minutes = DURATIONS[selectedIndex] || 1
+                        if (!minutes) return
                         await startTimer(minutes)
                         return
                     }
