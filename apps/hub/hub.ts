@@ -19,7 +19,6 @@ import {
 import type { AppActions, SetStatus } from '../_shared/app-types'
 import { appendEventLog } from '../_shared/log'
 import type { HubRenderer, SubModule } from './types'
-import { createClockModule } from './modules/clock'
 import { createTimerModule } from './modules/timer'
 import { createRedditModule } from './modules/reddit'
 import { createChessModule } from './modules/chess'
@@ -427,7 +426,6 @@ export function createHubActions(setStatus: SetStatus): AppActions {
     const renderer = createRenderer()
 
     modules = [
-        createClockModule(renderer, setStatus),
         createTimerModule(renderer, setStatus),
         createRedditModule(renderer, setStatus),
         createChessModule(renderer, setStatus),

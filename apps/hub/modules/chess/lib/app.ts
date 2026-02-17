@@ -106,15 +106,15 @@ export async function createChessApp(externalBridge?: any): Promise<ChessApp> {
   const CONTAINER_READY_MS = 50;
 
   try {
-    appendEventLog('Chess: init bridge...');
+    // appendEventLog('Chess: init bridge...');
     await hub.init();
     // Initialize engine without blocking UI; it will fallback if needed
     turnLoop.init().catch(err => console.warn('[EvenChess] Engine init warning:', err));
 
-    appendEventLog('Chess: composing startup page...');
+    // appendEventLog('Chess: composing startup page...');
     const startupPage = composeStartupPage(store.getState());
     const pageOk = await hub.setupPage(startupPage);
-    appendEventLog(`Chess: setupPage result=${pageOk}`);
+    // appendEventLog(`Chess: setupPage result=${pageOk}`);
     if (!pageOk) {
       appendEventLog('Chess: FAILED to create page — aborting image send');
       throw new Error('setupPage failed');
@@ -122,28 +122,28 @@ export async function createChessApp(externalBridge?: any): Promise<ChessApp> {
 
     const state = store.getState();
     const containerReady = new Promise<void>((r) => setTimeout(r, CONTAINER_READY_MS));
-    appendEventLog('Chess: rendering board BMP...');
+    // appendEventLog('Chess: rendering board BMP...');
     // Force BMP rendering for glasses compatibility (PNG fails on device)
     const initialImages = boardRenderer.renderFull(state, chess);
-    appendEventLog(`Chess: BMP render got ${initialImages.length} images`);
+    // appendEventLog(`Chess: BMP render got ${initialImages.length} images`);
 
     await containerReady;
 
 
     if (initialImages.length > 0) {
-      appendEventLog(`Chess: sending ${initialImages.length} board images...`);
+      // appendEventLog(`Chess: sending ${initialImages.length} board images...`);
       for (const img of initialImages) {
-        appendEventLog(`Chess: img id=${img.containerID} name=${img.containerName} bytes=${img.imageData ? (img.imageData as any).length ?? '?' : 0}`);
+        // appendEventLog(`Chess: img id=${img.containerID} name=${img.containerName} bytes=${img.imageData ? (img.imageData as any).length ?? '?' : 0}`);
       }
       await sendImages(hub, initialImages);
-      appendEventLog('Chess: board images sent OK');
+      // appendEventLog('Chess: board images sent OK');
     } else {
       appendEventLog('Chess: WARNING — no images to send!');
     }
 
-    appendEventLog('Chess: sending branding image...');
+    // appendEventLog('Chess: sending branding image...');
     await hub.updateBoardImage(renderBrandingImage());
-    appendEventLog('Chess: init complete');
+    // appendEventLog('Chess: init complete');
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     appendEventLog(`Chess: INIT FAILED: ${msg}`);
