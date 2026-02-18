@@ -132,7 +132,7 @@ export class EvenHubBridge {
         console.error('[EvenHubBridge] Image update error:', err);
       }
       // Hardware Throttle: Prevent BLE saturation
-      await new Promise(r => setTimeout(r, 50));
+      await new Promise(r => setTimeout(r, 100));
     }
 
     this.isSendingImage = false;

@@ -170,6 +170,12 @@ export function createChessApp(externalBridge?: any): ChessApp {
     // Force initial update
     void flushDisplayUpdate(true);
 
+    // REDUNDANCY: Force another update after 1s to fix partial rendering if the first one was dropped
+    setTimeout(() => {
+      appendEventLog('Chess: Redundant Flush');
+      void flushDisplayUpdate(true);
+    }, 1200);
+
     // Restore event listener
     hub.subscribeEvents(handleHubEvent);
   };
