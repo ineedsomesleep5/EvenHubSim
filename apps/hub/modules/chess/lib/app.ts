@@ -128,8 +128,9 @@ export function createChessApp(externalBridge?: any): ChessApp {
     isRenderingEnabled = true;
 
     // Check for resume menu
-    // We must re-check state as it might have changed if multiple enters occurred (unlikely but safe)
+    // REGRESSION TEST: Bypass Resume Menu to verify if this is the cause of "Partial Render" and "Create Failed"
     const currentFen = store.getState().fen;
+    /*
     if (currentFen !== STARTING_FEN) {
       const resume = await showResumeMenu(hub);
       if (!resume) {
@@ -146,6 +147,8 @@ export function createChessApp(externalBridge?: any): ChessApp {
         appendEventLog('Chess: Resuming game');
       }
     }
+    */
+    appendEventLog('Chess: Skipping Resume Menu (Testing Fix)');
 
     // Compose page
     // SHUTDOWN INTERMEDIATE PAGE (Resume Menu) if it exists, otherwise Create fails on hardware
@@ -192,9 +195,13 @@ export function createChessApp(externalBridge?: any): ChessApp {
   };
 
   const handleHubEvent = (event: any) => {
+    appendEventLog(`ChessApp: Event captured: ${JSON.stringify(event)}`);
     const action = mapEvenHubEvent(event, store.getState());
     if (action) {
+      appendEventLog(`ChessApp: Action dispatched: ${JSON.stringify(action)}`);
       store.dispatch(action);
+    } else {
+      appendEventLog('ChessApp: Event ignored (no action mapped)');
     }
   };
 

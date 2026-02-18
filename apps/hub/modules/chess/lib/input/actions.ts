@@ -84,7 +84,7 @@ function isScrollSuppressed(): boolean {
   return Date.now() - lastTapTime < SCROLL_SUPPRESS_AFTER_TAP_MS;
 }
 
-const DEBUG_EVENTS = false;
+const DEBUG_EVENTS = true;
 
 export function mapEvenHubEvent(event: EvenHubEvent, _state: GameState): Action | null {
   if (!event) {
