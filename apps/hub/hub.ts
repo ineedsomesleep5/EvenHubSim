@@ -24,6 +24,7 @@ import { createTimerModule } from './modules/timer'
 import { createRedditModule } from './modules/reddit'
 import { createChessModule } from './modules/chess'
 import { createRestApiModule } from './modules/restapi'
+import { loadModules } from './modules/loader';
 
 // ── SDK State ──────────────────────────────────────────────
 let bridge: EvenAppBridge | null = null
@@ -470,12 +471,16 @@ export function createHubActions(setStatus: SetStatus): AppActions {
     hubSetStatus = setStatus
     const renderer = createRenderer()
 
-    modules = [
-        createTimerModule(renderer, setStatus),
-        createRedditModule(renderer, setStatus),
-        createChessModule(renderer, setStatus),
-        createRestApiModule(renderer, setStatus),
-    ]
+
+
+    // ...
+
+    // Load modules dynamically
+    void loadModules(renderer, setStatus).then((mods: SubModule[]) => {
+        modules = mods;
+        // Refresh menu if already connected
+        if (connected) showMenu();
+    });
 
     // Initialize Bridge
     void (async () => {
