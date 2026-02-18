@@ -57,7 +57,7 @@ function tryConsumeTap(intendedActionType: 'TAP' | 'DOUBLE_TAP'): boolean {
   recordTap();
   if (isInTapCooldown()) {
     // #region agent log
-    fetch('http://127.0.0.1:7244/ingest/b292c5db-7dfa-488b-bfc0-114fb9d476de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'actions.ts:tap_cooldown',message:'Tap suppressed by cooldown',data:{stage:'tap_suppressed',intendedActionType,msRemaining:getTapCooldownRemainingMs()},timestamp:Date.now(),hypothesisId:'perf'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7244/ingest/b292c5db-7dfa-488b-bfc0-114fb9d476de', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'actions.ts:tap_cooldown', message: 'Tap suppressed by cooldown', data: { stage: 'tap_suppressed', intendedActionType, msRemaining: getTapCooldownRemainingMs() }, timestamp: Date.now(), hypothesisId: 'perf' }) }).catch(() => { });
     // #endregion
     return false;
   }
@@ -116,7 +116,7 @@ export function mapEvenHubEvent(event: EvenHubEvent, _state: GameState): Action 
     }
     // #region agent log
     if (action && (action.type === 'SCROLL' || action.type === 'TAP' || action.type === 'DOUBLE_TAP')) {
-      fetch('http://127.0.0.1:7244/ingest/b292c5db-7dfa-488b-bfc0-114fb9d476de',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'actions.ts:input',message:'Input event',data:{stage:'input',actionType:action.type},timestamp:Date.now(),hypothesisId:'perf'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7244/ingest/b292c5db-7dfa-488b-bfc0-114fb9d476de', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'actions.ts:input', message: 'Input event', data: { stage: 'input', actionType: action.type }, timestamp: Date.now(), hypothesisId: 'perf' }) }).catch(() => { });
     }
     // #endregion
     return action;
@@ -199,6 +199,19 @@ export function mapTextEvent(event: Text_ItemEvent): Action | null {
       if (eventType == null) {
         if (!tryConsumeTap('TAP')) return null;
         return { type: 'TAP', selectedIndex: 0, selectedName: '' };
+      }
+      // Numeric fallback for Text/Sys events (1=Up, 2=Down)
+      if (typeof eventType === 'number') {
+        if (eventType === 1) { // SCROLL_TOP
+          if (isScrollDebounced()) return null;
+          if (isScrollSuppressed()) return null;
+          return { type: 'SCROLL', direction: 'up' };
+        }
+        if (eventType === 2) { // SCROLL_BOTTOM
+          if (isScrollDebounced()) return null;
+          if (isScrollSuppressed()) return null;
+          return { type: 'SCROLL', direction: 'down' };
+        }
       }
       return null;
   }
