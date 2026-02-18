@@ -124,9 +124,13 @@ export class EvenHubBridge {
     while (this.imageQueue.length > 0) {
       const data = this.imageQueue.shift()!;
       try {
+        appendEventLog(`Bridge: Updating Image ID=${data.containerID}`);
         const result = await this.bridge.updateImageRawData(data);
         if (!ImageRawDataUpdateResult.isSuccess(result)) {
+          appendEventLog(`Bridge: Image Error: ${result}`);
           console.warn('[EvenHubBridge] Image update not successful:', result);
+        } else {
+          appendEventLog(`Bridge: Image OK`);
         }
       } catch (err) {
         console.error('[EvenHubBridge] Image update error:', err);

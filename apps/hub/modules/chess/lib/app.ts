@@ -161,6 +161,7 @@ export function createChessApp(externalBridge?: any): ChessApp {
       appendEventLog('Chess: FAILED to create page — aborting image send');
       throw new Error('setupPage failed');
     }
+    appendEventLog('Chess: Setup Page OK');
 
     // Subscribe to store updates
     if (storeUnsubscribe) storeUnsubscribe();
@@ -630,6 +631,7 @@ export function createChessApp(externalBridge?: any): ChessApp {
               scheduleBoardCacheRefill(state);
             }
             imageCount = dirtyImages.length;
+            appendEventLog(`Chess: Sending ${imageCount} images...`);
             return sendImages(hub, dirtyImages);
           })()
           : Promise.resolve();
