@@ -1,0 +1,53 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - img [ref=e5]
+      - heading "Even Hub Simulator" [level=1] [ref=e8]
+    - text: G2
+  - main [ref=e9]:
+    - generic [ref=e10]:
+      - heading "Status" [level=2] [ref=e13]
+      - paragraph [ref=e14]: Connected — use glasses to navigate
+    - generic [ref=e15]:
+      - generic [ref=e16]:
+        - button "Connect to Glasses" [ref=e17] [cursor=pointer]:
+          - generic [ref=e18]: Connect to Glasses
+        - button "Action" [ref=e19] [cursor=pointer]:
+          - generic [ref=e20]: Action
+      - paragraph [ref=e21]:
+        - text: "On glasses:"
+        - strong [ref=e22]: scroll
+        - text: to navigate ·
+        - strong [ref=e23]: click
+        - text: to select ·
+        - strong [ref=e24]: double-click
+        - text: to go back
+    - generic [ref=e25]:
+      - heading "Glasses Display" [level=2] [ref=e27]
+      - generic [ref=e29]:
+        - list [ref=e31]:
+          - listitem [ref=e32] [cursor=pointer]: Timer
+          - listitem [ref=e33] [cursor=pointer]: Reddit
+          - listitem [ref=e34] [cursor=pointer]: Chess (Full)
+          - listitem [ref=e35] [cursor=pointer]: REST API
+        - generic [ref=e37]: ── Even Hub ──
+    - generic [ref=e38]:
+      - generic [ref=e39]:
+        - heading "Event Log" [level=2] [ref=e40]
+        - button "Clear" [ref=e41] [cursor=pointer]
+      - generic [ref=e42]:
+        - generic [ref=e43]: 01:31:14 AMLoading Even Hub
+        - generic [ref=e44]: 01:31:14 AMEven Hub Simulator initialized
+        - generic [ref=e45]: "01:31:14 AMHub: waiting for bridge..."
+        - generic [ref=e46]: "01:31:14 AMShow Menu: 4 modules, index=0"
+        - generic [ref=e47]: "01:31:14 AMRendering List: ── Even Hub ──"
+        - generic [ref=e48]: 01:31:14 AMHub loaded — press Connect
+        - generic [ref=e49]: 01:31:14 AMPage Created (List) success
+        - generic [ref=e50]: "01:31:14 AMHub: Bridge connected"
+        - generic [ref=e51]: "01:31:15 AMRaw: {\"list\":{\"et\":0,\"idx\":0},\"text\":null,\"sys\":null,\"json\":{\"eventType\":0,\"currentSelectItemIndex\":0}}"
+  - contentinfo [ref=e52]:
+    - paragraph [ref=e53]: Even Hub Simulator · Clock · Timer · Reddit · Chess · REST API
+```

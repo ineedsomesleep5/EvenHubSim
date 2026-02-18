@@ -151,8 +151,9 @@ export function createChessApp(externalBridge?: any): ChessApp {
     appendEventLog('Chess: Skipping Resume Menu (Testing Fix)');
 
     // Compose page
-    // SHUTDOWN INTERMEDIATE PAGE (Resume Menu) if it exists, otherwise Create fails on hardware
-    await hub.closePage();
+    // SHUTDOWN INTERMEDIATE PAGE: Removed strictly. `hub.ts` already clears the screen before calling enter().
+    // calling closePage() here again causes a "Page not found" or similar error which aborts the setup.
+    // await hub.closePage();
 
     const startupPage = composeStartupPage(store.getState());
     const pageOk = await hub.setupPage(startupPage);
