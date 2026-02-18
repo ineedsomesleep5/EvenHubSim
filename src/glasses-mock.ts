@@ -382,9 +382,14 @@ function handleSdkMessage(jsonStr: string): any {
     let msg: SdkMessage
     try {
         msg = JSON.parse(jsonStr)
-    } catch {
-        console.warn('[GlassesMock] Failed to parse SDK message')
+    } catch (e) {
+        console.warn('[GlassesMock] Failed to parse SDK message', e)
+        if ((window as any).logToSim) (window as any).logToSim('[Sim] Parse Error: ' + String(e))
         return undefined
+    }
+
+    if ((window as any).logToSim) {
+        (window as any).logToSim(`[Sim] Msg: type=${msg.type} method=${msg.method}`)
     }
 
     if (msg.type !== 'call_even_app_method') {
@@ -393,10 +398,6 @@ function handleSdkMessage(jsonStr: string): any {
     }
 
     const data = msg.data ?? {}
-
-    if ((window as any).logToSim) {
-        // (window as any).logToSim(`[Sim] Msg: ${msg.method}`)
-    }
 
     switch (msg.method) {
         case 'createStartUpPageContainer':
