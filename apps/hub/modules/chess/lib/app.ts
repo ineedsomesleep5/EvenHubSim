@@ -148,6 +148,9 @@ export function createChessApp(externalBridge?: any): ChessApp {
     }
 
     // Compose page
+    // SHUTDOWN INTERMEDIATE PAGE (Resume Menu) if it exists, otherwise Create fails on hardware
+    await hub.closePage();
+
     const startupPage = composeStartupPage(store.getState());
     const pageOk = await hub.setupPage(startupPage);
     if (!pageOk) {
@@ -165,7 +168,7 @@ export function createChessApp(externalBridge?: any): ChessApp {
     });
 
     // Force initial update
-    void flushDisplayUpdate();
+    void flushDisplayUpdate(true);
 
     // Restore event listener
     hub.subscribeEvents(handleHubEvent);
@@ -474,7 +477,7 @@ export function createChessApp(externalBridge?: any): ChessApp {
     }
   }
 
-  async function flushDisplayUpdate(): Promise<void> {
+  async function flushDisplayUpdate(force = false): Promise<void> {
     if (!isRenderingEnabled) return; // Only render if enabled
 
     // Mutex: BLE sends can be slow on glasses, prevent concurrent flushes
@@ -515,7 +518,7 @@ export function createChessApp(externalBridge?: any): ChessApp {
         state.academyState?.pgnStudy?.currentMoveIndex !== prev.academyState?.pgnStudy?.currentMoveIndex ||
         state.academyState?.pgnStudy?.gameName !== prev.academyState?.pgnStudy?.gameName;
 
-      if (!displayChanged) {
+      if (!displayChanged && !force) {
         return;
       }
 
