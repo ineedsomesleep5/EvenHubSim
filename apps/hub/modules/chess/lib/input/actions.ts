@@ -202,12 +202,13 @@ export function mapTextEvent(event: Text_ItemEvent): Action | null {
       }
       // Numeric fallback for Text/Sys events (1=Up, 2=Down)
       if (typeof eventType === 'number') {
-        if (eventType === 1) { // SCROLL_TOP
+        const rawType = eventType as unknown as number;
+        if (rawType === 1) { // SCROLL_TOP
           if (isScrollDebounced()) return null;
           if (isScrollSuppressed()) return null;
           return { type: 'SCROLL', direction: 'up' };
         }
-        if (eventType === 2) { // SCROLL_BOTTOM
+        if (rawType === 2) { // SCROLL_BOTTOM
           if (isScrollDebounced()) return null;
           if (isScrollSuppressed()) return null;
           return { type: 'SCROLL', direction: 'down' };
